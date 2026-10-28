@@ -94,7 +94,7 @@ the trial is explicitly accepted.
 
 MIT License; see `LICENSE`.
 
-## Differences from the oracle
+## Deliberate behavior
 
-See `docs/differences.md` for intentional, allowlisted deltas and
-`docs/upstream.md` for pinned sources and CVEs.
+See `docs/differences.md` for the intentional, allowlisted behavior
+rules and `docs/upstream.md` for pinned sources and CVEs.

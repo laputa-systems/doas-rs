@@ -1,7 +1,10 @@
-# Deliberate differences from the oracle
+# Deliberate behavior
 
-Each entry is an intentional deviation with rationale. Unexamined
-diffs stay open; these are allowlisted once each.
+Each entry states one behavior rule with its rationale. OpenBSD and
+OpenDoas behavior is noted where a rule intentionally matches or
+departs from it; no OpenBSD or OpenDoas code lives in this repo and no
+test builds or compares against it. Unexamined behaviors stay open;
+these are allowlisted once each.
 
 ## D1: configuration directory always supplements the main file
 
@@ -63,15 +66,6 @@ account is locked after a timestamp is created, the timestamp still
 authorizes until it expires; revoking access means `-L` or waiting out
 the 5-minute window. This matches the oracle's check order.
 
-## D11: account policy is password locking, not expiry
-
-Password hashes starting with `*`, `!`, or empty, and missing shadow
-entries, fail closed. Only the invoking user's password is checked;
-a locked target password does not forbid delegation (e.g. `nopass`
-or `permit ... as root` still works when root's password is locked).
-Shadow expiry/inactivity fields are not enforced; expiry is documented
-as not implemented rather than silently equated with locking.
-
 ## D6: TTY strategy is detect plus refuse, not a byte relay
 
 Oracle shares the invoking terminal, leaving `CVE-2023-28339` open
@@ -128,3 +122,12 @@ and NUL-free, else the target user's passwd shell when absolute, else
 (`cmd` comparison) and for execution, so the authorized shell equals
 the executed shell. A relative or bare `$SHELL` never propagates to
 execution.
+
+## D11: account policy is password locking, not expiry
+
+Password hashes starting with `*`, `!`, or empty, and missing shadow
+entries, fail closed. Only the invoking user's password is checked;
+a locked target password does not forbid delegation (e.g. `nopass`
+or `permit ... as root` still works when root's password is locked).
+Shadow expiry/inactivity fields are not enforced; expiry is documented
+as not implemented rather than silently equated with locking.
