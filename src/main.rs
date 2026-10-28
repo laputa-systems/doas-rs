@@ -24,6 +24,8 @@ mod timestamp;
 mod log;
 #[allow(dead_code)]
 mod exec;
+#[allow(dead_code)]
+mod tty;
 
 struct UntrustedInput {
     argv: Vec<OsString>,
