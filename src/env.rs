@@ -404,7 +404,7 @@ mod tests {
     }
 
     #[test]
-    fn prepenv_end_to_end_matches_oracle_shape() {
+    fn prepenv_end_to_end_shape() {
         let env = environ_pairs(&[
             ("DISPLAY", ":0"),
             ("TERM", "xterm"),

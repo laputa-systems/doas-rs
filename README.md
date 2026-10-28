@@ -1,8 +1,9 @@
 # doas-rs
 
 Minimal security-hardened Rust reimplementation of OpenBSD `doas` for
-Linux (aarch64 musl, Alpine edge). Real setuid-root boundary:
-correctness and security are release requirements, not follow-ups.
+Linux (musl; install below targets Alpine edge, aarch64 or x86_64).
+Real setuid-root boundary: correctness and security are release
+requirements, not follow-ups.
 
 > Maturity: experimental. Production use is blocked on independent
 > security review. Interactive use is refused while the kernel leaves
@@ -22,10 +23,10 @@ policy and prints `permit` or `deny` without executing. Rules live
 in `/etc/doas.conf`, then `/etc/doas.d/*.conf`; see
 `docs/doas.conf.example`.
 
-## Install (Alpine edge, aarch64)
+## Install (Alpine edge)
 
 Build the binary with the pinned toolchain (`Dockerfile`,
-`rust-toolchain.toml`):
+`rust-toolchain.toml`) for the host architecture:
 
 ```sh
 docker build -t doas-dev .
@@ -55,15 +56,13 @@ doas -C /etc/doas.conf
 doas -C /etc/doas.conf id
 ```
 
-Verify (measured on `alpine:edge` aarch64):
+Verify (example output shape, not exact bytes):
 
 ```sh
 ldd /usr/local/bin/doas
 # Not a valid dynamic program (fully static, musl + libcrypt.a)
 ls -l /usr/local/bin/doas
-# -rwsr-xr-x 825896 bytes (806.5K), sha256
-# 0de3a83e83fcade1d4834b190340362fff242a218eb4c35bd2bdec7d5c58d8a8
-# (identical across rebuilds with the same recipe; see docs/upstream.md)
+# -rwsr-xr-x root-owned, setuid bit set
 ls -l /etc/doas.conf
 ls -ld /etc/doas.d /run/doas
 # drwxr-x--- /etc/doas.d, drwx------ /run/doas, both root-owned
@@ -72,9 +71,9 @@ ls -ld /etc/doas.d /run/doas
 No startup/latency claim is made here: two wall-clock readings rounded
 to `0.00s` cannot establish a ratio or a gate. Performance comparison
 requires the median of repeated runs on a quiet host with the load
-check passing before and after, as documented for the seatd idle gate.
-Binary size is larger than the oracle (`806.5K` vs `77.1K`) from the
-Rust runtime; no action per the size-is-logged rule.
+check passing before and after. The binary is larger than OpenDoas
+(~800K vs ~77K) because it statically links the Rust runtime and
+libcrypt; size is logged, not gated.
 
 ## Rollback and root recovery
 
