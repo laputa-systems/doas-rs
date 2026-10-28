@@ -14,8 +14,51 @@ pub fn stdin_is_tty() -> bool {
     unsafe { libc::isatty(0) == 1 }
 }
 
+pub fn stdout_is_tty() -> bool {
+    unsafe { libc::isatty(1) == 1 }
+}
+
+pub fn stderr_is_tty() -> bool {
+    unsafe { libc::isatty(2) == 1 }
+}
+
+pub fn any_stdio_is_tty() -> bool {
+    stdin_is_tty() || stdout_is_tty() || stderr_is_tty()
+}
+
+pub fn has_controlling_tty() -> bool {
+    let c = CString::new("/dev/tty").unwrap();
+    let fd = unsafe { libc::open(c.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOCTTY) };
+    if fd < 0 {
+        return false;
+    }
+    unsafe { libc::close(fd) };
+    true
+}
+
 pub fn refuse_interactive(stdin_tty: bool, tiocsti_enabled: bool) -> bool {
     stdin_tty && tiocsti_enabled
+}
+
+pub fn refuse_session(
+    stdin_tty: bool,
+    stdout_tty: bool,
+    stderr_tty: bool,
+    controlling_tty: bool,
+    tiocsti_enabled: bool,
+) -> bool {
+    (stdin_tty || stdout_tty || stderr_tty || controlling_tty) && tiocsti_enabled
+}
+
+pub fn should_refuse_current_session() -> bool {
+    let tiocsti_enabled = should_isolate();
+    refuse_session(
+        stdin_is_tty(),
+        stdout_is_tty(),
+        stderr_is_tty(),
+        has_controlling_tty(),
+        tiocsti_enabled,
+    )
 }
 
 pub fn open_pty() -> Result<(i32, i32, String), String> {
@@ -70,6 +113,25 @@ mod tests {
         assert!(!refuse_interactive(true, false));
         assert!(!refuse_interactive(false, true));
         assert!(!refuse_interactive(false, false));
+    }
+
+    #[test]
+    fn refuse_session_covers_all_stdio_and_ctty() {
+        assert!(refuse_session(true, false, false, false, true));
+        assert!(refuse_session(false, true, false, false, true));
+        assert!(refuse_session(false, false, true, false, true));
+        assert!(refuse_session(false, false, false, true, true));
+        assert!(!refuse_session(true, false, false, false, false));
+        assert!(!refuse_session(false, true, false, false, false));
+        assert!(!refuse_session(false, false, false, false, true));
+        assert!(!refuse_session(false, false, false, false, false));
+    }
+
+    #[test]
+    fn stdin_only_is_insufficient() {
+        assert!(!refuse_interactive(false, true));
+        assert!(refuse_session(false, true, false, false, true));
+        assert!(refuse_session(false, false, false, true, true));
     }
 
     #[test]

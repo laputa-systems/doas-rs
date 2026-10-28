@@ -61,13 +61,17 @@ bytes an attacker pushes into the invoking terminal with `TIOCSTI`
 travel the relay into the privileged session exactly like keystrokes,
 so a proxy is security theater here. The only userspace strategy that
 closes the CVE scenario is detection plus refusal. This port reads
-`legacy_tiocsti`; interactive use (terminal stdin) is refused while
-`TIOCSTI` is enabled, with an actionable error, and proceeds by direct
-exec once the kernel disables it. Non-interactive use is unchanged
-from the oracle: pipes and files pass straight through, so pipelines
-keep working. Residual, stated openly: a target program that
-explicitly opens `/dev/tty` shares the invoking terminal exactly as
-it does under the oracle; no new exposure, no silent fix.
+`legacy_tiocsti`; if `TIOCSTI` is enabled and any of stdin/stdout/stderr
+is a tty or `/dev/tty` can be opened (inherited controlling terminal,
+including the case where stdin was redirected but the target later
+opens `/dev/tty`), execution is refused with an actionable error, and
+proceeds by direct exec once the kernel disables it. Non-interactive
+use with no controlling terminal is unchanged from the oracle: pipes
+and files pass straight through, so pipelines keep working. Residual,
+stated openly: a target program that explicitly opens `/dev/tty` after
+a successful non-interactive exec shares the invoking terminal exactly
+as it does under the oracle when no terminal was detected at the gate;
+no new exposure, no silent fix, and no host kernel policy is changed.
 
 ## D7: `crypt` backend is system `libcrypt`
 

@@ -55,6 +55,9 @@ struct PreparedExecution {
     envp: Vec<OsString>,
     cmd_path: PathBuf,
     argv_exec: Vec<OsString>,
+    target_uid: u32,
+    target_gid: u32,
+    target_name: OsString,
 }
 
 struct Exec {
@@ -364,11 +367,17 @@ impl AuthenticatedRequest {
         let mut argv_exec = Vec::with_capacity(argv_rest.len() + 1);
         argv_exec.push(cmd_path.clone().into_os_string());
         argv_exec.extend(argv_rest);
+        let prepared_uid = target_uid;
+        let prepared_gid = target.gid;
+        let prepared_name = target.name.clone();
         Ok(PreparedExecution {
             request: self,
             envp,
             cmd_path,
             argv_exec,
+            target_uid: prepared_uid,
+            target_gid: prepared_gid,
+            target_name: prepared_name,
         })
     }
 }
@@ -386,8 +395,20 @@ impl Exec {
             envp,
             cmd_path,
             argv_exec,
+            target_uid: prepared_uid,
+            target_gid: prepared_gid,
+            target_name: prepared_name,
         } = self.prepared;
         let target_uid = request.request.policy.target_uid;
+        if target_uid != prepared_uid {
+            let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
+            return Err(Denied {
+                stage: "exec",
+                argv: argv.clone(),
+                uid: *uid,
+                gid: *gid,
+            });
+        }
         let target_entry = identity::lookup_user_by_uid(target_uid).ok_or_else(|| {
             let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
             Denied {
@@ -397,6 +418,15 @@ impl Exec {
                 gid: *gid,
             }
         })?;
+        if target_entry.gid != prepared_gid || target_entry.name != prepared_name {
+            let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
+            return Err(Denied {
+                stage: "exec",
+                argv: argv.clone(),
+                uid: *uid,
+                gid: *gid,
+            });
+        }
         let target_gid = target_entry.gid;
         let target_name = target_entry.name.clone();
         let invoking_uid = request.request.policy.input.uid.as_raw();
@@ -408,7 +438,7 @@ impl Exec {
             .map(|p| OsString::from(p.to_string_lossy().into_owned()))
             .unwrap_or_else(|_| OsString::from("(failed)"));
         let nolog = request.request.permit.options.contains(config::Options::NOLOG);
-        if crate::tty::refuse_interactive(crate::tty::stdin_is_tty(), crate::tty::should_isolate()) {
+        if crate::tty::should_refuse_current_session() {
             log::log_deny(
                 invoking_name.as_os_str(),
                 cmdline.as_os_str(),
