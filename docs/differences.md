@@ -62,13 +62,15 @@ keep working. Residual, stated openly: a target program that
 explicitly opens `/dev/tty` shares the invoking terminal exactly as
 it does under the oracle; no new exposure, no silent fix.
 
-## D7: `crypt` backend is system `libcrypt` (DES on musl)
+## D7: `crypt` backend is system `libcrypt`
 
-No own crypto. Password checks call system `crypt` through `libcrypt`
-(DES on Alpine musl, matching Alpine shadow passwords). Hashes
-starting with `*`, `!`, or empty, and missing shadow entries, fail
-closed. Constant-time compare, zeroized buffers, single attempt, TTY
-required, non-interactive fast fail.
+No own crypto. Password checks call system `crypt` through `libcrypt`,
+which handles the modular hashes found in shadow (DES and `$6$`
+sha512crypt verified by roundtrip on Linux). Hashes starting with `*`,
+`!`, or empty, and missing shadow entries, fail closed. Constant-time
+compare, zeroized buffers, single attempt, TTY required,
+non-interactive fast fail. Calls are serialized through a
+process-wide lock because `crypt` returns shared static storage.
 
 ## D8: numeric IDs bounded to `0..=65534`
 
