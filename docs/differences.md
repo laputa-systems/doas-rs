@@ -58,7 +58,10 @@ caller/session/terminal; it never creates a new timestamp. Timestamps
 do not survive reboot (boot clock) and expire after 5 minutes by both
 boot and wall clocks; concurrent use refreshes the same file, and
 tampered mode/owner/type is rejected as invalid. `-C` never consults
-or creates timestamps.
+or creates timestamps. Timestamps do not re-check account state: if an
+account is locked after a timestamp is created, the timestamp still
+authorizes until it expires; revoking access means `-L` or waiting out
+the 5-minute window. This matches the oracle's check order.
 
 ## D11: account policy is password locking, not expiry
 

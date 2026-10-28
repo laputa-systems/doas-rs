@@ -63,17 +63,18 @@ ldd /usr/local/bin/doas
 ls -l /usr/local/bin/doas
 # -rwsr-xr-x 825896 bytes (806.5K), sha256
 # 0de3a83e83fcade1d4834b190340362fff242a218eb4c35bd2bdec7d5c58d8a8
-# (identical across rebuilds)
+# (identical across rebuilds with the same recipe; see docs/upstream.md)
 ls -l /etc/doas.conf
 ls -ld /etc/doas.d /run/doas
 # drwxr-x--- /etc/doas.d, drwx------ /run/doas, both root-owned
 ```
 
-Cold `doas -C` overhead matches the oracle (`OpenDoas 6.8.2`,
-`--without-pam --with-timestamp`): both `real 0m 0.00s` on the same
-host, well under the `2x` gate. Binary is larger than the oracle
-(`806.5K` vs `77.1K`) from the Rust runtime; no action per the
-size-is-logged rule.
+No startup/latency claim is made here: two wall-clock readings rounded
+to `0.00s` cannot establish a ratio or a gate. Performance comparison
+requires the median of repeated runs on a quiet host with the load
+check passing before and after, as documented for the seatd idle gate.
+Binary size is larger than the oracle (`806.5K` vs `77.1K`) from the
+Rust runtime; no action per the size-is-logged rule.
 
 ## Rollback and root recovery
 
