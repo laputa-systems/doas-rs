@@ -194,7 +194,13 @@ mod tests {
         assert_eq!(unsafe { libc::tcgetattr(slave, &mut term) }, 0);
         let orig = term;
         term.c_lflag &= !(libc::ECHO as libc::tcflag_t);
-        assert_eq!(unsafe { libc::tcsetattr(slave, libc::TCSANOW, &term) }, 0);
+        for _ in 0..10 {
+            if unsafe { libc::tcsetattr(slave, libc::TCSANOW, &term) } == 0 {
+                break;
+            }
+            let e = std::io::Error::last_os_error();
+            assert_eq!(e.raw_os_error(), Some(libc::EINTR));
+        }
         let mut back: libc::termios = unsafe { std::mem::zeroed() };
         assert_eq!(unsafe { libc::tcgetattr(slave, &mut back) }, 0);
         assert_eq!(back.c_lflag & (libc::ECHO as libc::tcflag_t), 0);
