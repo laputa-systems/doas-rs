@@ -20,6 +20,8 @@ mod load;
 mod auth;
 #[allow(dead_code)]
 mod timestamp;
+#[allow(dead_code)]
+mod log;
 
 struct UntrustedInput {
     argv: Vec<OsString>,
