@@ -51,7 +51,23 @@ Oracle checks timestamp `st_gid == getgid()`. This port requires
 `st_uid == 0`, regular file, mode `0000`, and dual-clock expiry, and
 scopes the name to `ppid-sid-tty-start-uid`. Group is not trusted
 from the invoking user. Absence or corruption means re-auth, never
-allow. `-L` clears the caller-scoped file and is idempotent.
+allow. `-L` clears only the caller-scoped file and is idempotent;
+clear errors other than missing are reported. `-n` fails instead of
+prompting unless a valid persisted timestamp already authorizes the
+caller/session/terminal; it never creates a new timestamp. Timestamps
+do not survive reboot (boot clock) and expire after 5 minutes by both
+boot and wall clocks; concurrent use refreshes the same file, and
+tampered mode/owner/type is rejected as invalid. `-C` never consults
+or creates timestamps.
+
+## D11: account policy is password locking, not expiry
+
+Password hashes starting with `*`, `!`, or empty, and missing shadow
+entries, fail closed. Only the invoking user's password is checked;
+a locked target password does not forbid delegation (e.g. `nopass`
+or `permit ... as root` still works when root's password is locked).
+Shadow expiry/inactivity fields are not enforced; expiry is documented
+as not implemented rather than silently equated with locking.
 
 ## D6: TTY strategy is detect plus refuse, not a byte relay
 

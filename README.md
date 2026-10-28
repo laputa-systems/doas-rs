@@ -36,17 +36,22 @@ docker rm doas-rel
 ```
 
 Copy `./doas` and `docs/doas.conf.example` to the Alpine host,
-then as root:
+then as root with a spare root shell open and the existing privilege
+tool untouched:
 
 ```sh
 apk add --no-cache ca-certificates
 install -m 4755 doas /usr/local/bin/doas
-install -m 640 doas.conf.example /etc/doas.conf
+if test ! -e /etc/doas.conf; then
+  install -m 640 doas.conf.example /etc/doas.conf
+else
+  echo "preserving existing /etc/doas.conf" >&2
+fi
 mkdir -m 750 -p /etc/doas.d
 mkdir -m 700 -p /run/doas
 doas -C /etc/doas.conf
-printf 'permit :wheel\n' > /etc/doas.conf
-chmod 640 /etc/doas.conf
+# Edit /etc/doas.conf explicitly; example (does not overwrite by default):
+# printf 'permit :wheel\n' > /etc/doas.conf.new && chmod 640 /etc/doas.conf.new
 doas -C /etc/doas.conf id
 ```
 
@@ -74,13 +79,15 @@ size-is-logged rule.
 
 ```sh
 rm -f /usr/local/bin/doas
-rm -rf /etc/doas.d /run/doas
-cp docs/doas.conf.example /etc/doas.conf
+rm -rf /run/doas
+# Do not delete /etc/doas.d or overwrite /etc/doas.conf here;
+# those are administrator policy. Remove only what this trial added.
 ```
 
 If locked out, reboot from trusted media, mount the rootfs, and remove
-the setuid binary and config above. Keep a root shell open while
-testing policy changes.
+only the setuid binary above. Keep a root shell open while testing
+policy changes and keep the distribution privilege tool installed until
+the trial is explicitly accepted.
 
 ## License
 
