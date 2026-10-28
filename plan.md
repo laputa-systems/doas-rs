@@ -9,7 +9,7 @@ security are release requirements, not follow-ups. Land accepted slices on
 
 - Goal: working Rust `doas` binary, Alpine-edge/dev-qualified, aarch64 musl.
 - Base: `3cef827` (empty repo: this doc + pinned nightly). Nothing red.
-- Accepted: none yet. Next: `S-01`. No parked slices.
+- Accepted: `S-01` (2026-10-28, upstream pins with full SHAs). Next: `S-02`. No parked slices.
 - Loop timings: no loop yet; `S-02` records `docker build` + `cargo test` wall time.
 - Foundation proven (2026-10-28): `alpine:edge` runs native aarch64 in Docker here.
 - Resume prompt: `Execute plan.md starting at Status: next slice.`
