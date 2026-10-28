@@ -161,8 +161,21 @@ impl ParsedPolicy {
             });
         }
         let uid_raw = self.input.uid.as_raw();
-        let cmd_os: OsString = if self.cli.shell {
-            OsString::new()
+        let (cmd_os, args_owned): (OsString, Vec<OsString>) = if self.cli.shell {
+            let target_entry = identity::lookup_user_by_uid(self.target_uid).ok_or_else(|| {
+                let UntrustedInput { argv, uid, gid } = &self.input;
+                Denied {
+                    stage: "deny",
+                    argv: argv.clone(),
+                    uid: *uid,
+                    gid: *gid,
+                }
+            })?;
+            let sh = exec::select_shell(
+                std::env::var_os("SHELL").as_deref(),
+                target_entry.shell.as_os_str(),
+            );
+            (sh, Vec::new())
         } else if self.cli.command.is_empty() {
             let UntrustedInput { argv, uid, gid } = self.input;
             return Err(Denied {
@@ -172,13 +185,12 @@ impl ParsedPolicy {
                 gid,
             });
         } else {
-            self.cli.command[0].clone()
+            (
+                self.cli.command[0].clone(),
+                self.cli.command[1..].to_vec(),
+            )
         };
-        let args_slice: &[OsString] = if self.cli.shell {
-            &[]
-        } else {
-            &self.cli.command[1..]
-        };
+        let args_slice: &[OsString] = args_owned.as_slice();
         let req = policy::Request {
             uid: uid_raw,
             groups: &self.groups,
@@ -288,16 +300,10 @@ impl AuthenticatedRequest {
             }
         })?;
         let (cmd_os, argv_rest): (OsString, Vec<OsString>) = if self.request.policy.cli.shell {
-            let sh_env = std::env::var_os("SHELL");
-            let sh = match sh_env {
-                Some(s) if !s.is_empty() => s,
-                _ => target.shell.clone(),
-            };
-            let sh = if sh.is_empty() {
-                OsString::from("/bin/sh")
-            } else {
-                sh
-            };
+            let sh = exec::select_shell(
+                std::env::var_os("SHELL").as_deref(),
+                target.shell.as_os_str(),
+            );
             (sh, Vec::new())
         } else {
             let c = self.request.policy.cli.command[0].clone();
@@ -332,8 +338,29 @@ impl AuthenticatedRequest {
         };
         let envp = env::prepenv(&input);
         let rule_has_cmd = self.request.permit.cmd.is_some();
-        let cmd_path = exec::resolve_cmd(cmd_os.as_os_str(), rule_has_cmd, former_path.as_os_str())
-            .unwrap_or_else(|_| PathBuf::from(cmd_os.clone()));
+        let cmd_path = exec::resolve_cmd(cmd_os.as_os_str(), rule_has_cmd, former_path.as_os_str()).map_err(|e| {
+            eprintln!("doas: {e}");
+            let UntrustedInput { argv, uid, gid } = &self.request.policy.input;
+            Denied {
+                stage: "exec",
+                argv: argv.clone(),
+                uid: *uid,
+                gid: *gid,
+            }
+        })?;
+        {
+            let pb = cmd_path.as_os_str().as_bytes();
+            if !pb.starts_with(b"/") {
+                eprintln!("doas: rejected non-absolute execution path");
+                let UntrustedInput { argv, uid, gid } = &self.request.policy.input;
+                return Err(Denied {
+                    stage: "exec",
+                    argv: argv.clone(),
+                    uid: *uid,
+                    gid: *gid,
+                });
+            }
+        }
         let mut argv_exec = Vec::with_capacity(argv_rest.len() + 1);
         argv_exec.push(cmd_path.clone().into_os_string());
         argv_exec.extend(argv_rest);
@@ -411,10 +438,21 @@ impl Exec {
                 gid: *gid,
             });
         }
-        unsafe {
+        let init_rc = unsafe {
             use std::ffi::CString;
-            let cname = CString::new(target_name.as_bytes()).unwrap_or_else(|_| CString::new("nobody").unwrap());
-            libc::initgroups(cname.as_ptr(), target_gid as libc::gid_t);
+            match CString::new(target_name.as_bytes()) {
+                Ok(cname) => libc::initgroups(cname.as_ptr(), target_gid as libc::gid_t),
+                Err(_) => -1,
+            }
+        };
+        if init_rc != 0 {
+            let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
+            return Err(Denied {
+                stage: "exec",
+                argv: argv.clone(),
+                uid: *uid,
+                gid: *gid,
+            });
         }
         if unsafe { libc::setresuid(target_uid, target_uid, target_uid) } != 0 {
             let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
@@ -434,8 +472,20 @@ impl Exec {
                 gid: *gid,
             });
         }
+        {
+            let pb = cmd_path.as_os_str().as_bytes();
+            if !pb.starts_with(b"/") || pb.contains(&0) {
+                let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
+                return Err(Denied {
+                    stage: "exec",
+                    argv: argv.clone(),
+                    uid: *uid,
+                    gid: *gid,
+                });
+            }
+        }
         exec::close_fds_from_3();
-        let c_path = CString::new(cmd_path.to_string_lossy().as_bytes()).map_err(|_| {
+        let c_path = CString::new(cmd_path.as_os_str().as_bytes()).map_err(|_| {
             let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
             Denied {
                 stage: "exec",
@@ -446,14 +496,32 @@ impl Exec {
         })?;
         let c_argv: Vec<CString> = argv_exec
             .iter()
-            .map(|a| CString::new(a.as_bytes()).unwrap_or_else(|_| CString::new("?").unwrap()))
-            .collect();
+            .map(|a| CString::new(a.as_bytes()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| {
+                let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
+                Denied {
+                    stage: "exec",
+                    argv: argv.clone(),
+                    uid: *uid,
+                    gid: *gid,
+                }
+            })?;
         let mut c_argv_ptrs: Vec<*const libc::c_char> = c_argv.iter().map(|a| a.as_ptr()).collect();
         c_argv_ptrs.push(std::ptr::null());
         let c_envp: Vec<CString> = envp
             .iter()
-            .map(|e| CString::new(e.as_bytes()).unwrap_or_else(|_| CString::new("?=?.").unwrap()))
-            .collect();
+            .map(|e| CString::new(e.as_bytes()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| {
+                let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
+                Denied {
+                    stage: "exec",
+                    argv: argv.clone(),
+                    uid: *uid,
+                    gid: *gid,
+                }
+            })?;
         let mut c_envp_ptrs: Vec<*const libc::c_char> = c_envp.iter().map(|e| e.as_ptr()).collect();
         c_envp_ptrs.push(std::ptr::null());
         unsafe {

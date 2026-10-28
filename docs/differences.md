@@ -14,19 +14,26 @@ fails closed (no silent empty policy).
 ## D2: safe PATH is unconditional for restricted commands
 
 Oracle sets `PATH` to the safe value only when the matched rule names
-a command, otherwise restores the invoking `PATH`. This port uses the
-safe value for every restricted execution and for `PATH` references
-in `setenv`. Unrestricted rules still resolve through the safe set
-unless the admin explicitly opts into `keepenv`. This closes
-`CVE-2019-25016` by construction: authorized equals executed, never
-through attacker `PATH`.
+a command, otherwise restores the invoking `PATH`. This port uses
+`SAFE_PATH` (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`)
+for every restricted execution and for `PATH` references in `setenv`.
+Unrestricted rules resolve bare names through the sanitized invoking
+`PATH` (empty, relative, and NUL components skipped; non-absolute
+components ignored). This closes `CVE-2019-25016` by construction for
+restricted rules: authorized equals executed, never through attacker
+`PATH`.
 
-## D3: relative paths with a slash are rejected
+## D3: relative paths with a slash are rejected, misses fail closed
 
 Oracle `execvpe` runs `bin/foo` relative to the invoking cwd when the
-rule names it. This port rejects any command containing `/` that is
-not absolute. Admins must write absolute paths. This removes
-cwd-squatting without changing absolute-path or bare-name behavior.
+rule names it, and falls back to the invoking cwd for bare names that
+miss the search path. This port rejects any command containing `/`
+that is not absolute, at both authorization and the final execution
+gate. A bare name absent from the applicable search path is an error,
+never a fallback to the caller's cwd or to the original string.
+Absolute paths are passed to `execve` unchanged; missing targets fail
+at `execve` with a diagnostic. No failed validation is converted into
+a usable original input.
 
 ## D4: descriptor-relative opens with `O_NOFOLLOW` throughout
 
@@ -78,3 +85,23 @@ Oracle `parseuid` and `parsegid` accept `0..UID_MAX-1` (`65534`) and
 reject `UID_MAX` (`65535`). This port enforces the same bound in the
 resolver and treats larger, negative, malformed, or unknown names as
 no-match (deny by default). No panic on overflow.
+
+## D9: executable search is path-based, not descriptor-pinned
+
+Search stats each `dir/name` candidate for a regular file with any
+execute bit, using native bytes (no lossy Unicode conversion), then
+`execve`s the selected absolute pathname. There is an intentional
+check-to-exec window: replacement between search and `execve` can
+change the target. The kernel enforces final executability and
+permission at `execve`; search-time checks are selection only. No
+`O_PATH`/`execveat` pinning is claimed. Diagnostics may render bytes
+lossily, but execution always uses the original bytes.
+
+## D10: `-s` shell is the evaluated shell
+
+`doas -s` selects the shell as: absolute `$SHELL` when it is absolute
+and NUL-free, else the target user's passwd shell when absolute, else
+`/bin/sh`. The same selected absolute path is used for policy matching
+(`cmd` comparison) and for execution, so the authorized shell equals
+the executed shell. A relative or bare `$SHELL` never propagates to
+execution.
