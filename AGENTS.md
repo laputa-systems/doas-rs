@@ -9,6 +9,7 @@ docker build -t doas-dev .
 docker create --name check doas-dev sh -lc 'cargo clippy --all-targets -- -D warnings && cargo test'
 docker start -a check
 cargo tree  # must show only libc/rustix (+transitives)
+sh harness/vm-priv.sh  # setuid privileged qualification in a disposable KVM guest
 ```
 
 Note: `docker run --rm` hangs on attach in this environment; use `docker create` + `docker start -a` instead.
