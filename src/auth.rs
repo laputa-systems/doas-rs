@@ -6,6 +6,17 @@ unsafe extern "C" {
     fn crypt(key: *const libc::c_char, salt: *const libc::c_char) -> *mut libc::c_char;
 }
 
+static CRYPT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn crypt_locked(key: &CStr, salt: &CStr) -> Option<Vec<u8>> {
+    let _guard = CRYPT_LOCK.lock().ok()?;
+    let out = unsafe { crypt(key.as_ptr(), salt.as_ptr()) };
+    if out.is_null() {
+        return None;
+    }
+    Some(unsafe { CStr::from_ptr(out) }.to_bytes().to_vec())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthError {
     NoTty(String),
@@ -68,15 +79,13 @@ pub fn crypt_verify(password: &[u8], hash: &OsStr) -> bool {
     let Some(hash_c) = cstring_from_bytes(hash_bytes) else {
         return false;
     };
-    let out = unsafe { crypt(pw_c.as_ptr(), hash_c.as_ptr()) };
-    if out.is_null() {
+    let Some(computed) = crypt_locked(&pw_c, &hash_c) else {
         return false;
-    }
-    let computed = unsafe { CStr::from_ptr(out) }.to_bytes();
+    };
     if computed.starts_with(b"*") {
         return false;
     }
-    ct_eq(computed, hash_bytes)
+    ct_eq(&computed, hash_bytes)
 }
 
 pub fn get_stored_hash(username: &OsStr) -> Option<OsString> {
@@ -250,6 +259,7 @@ mod tests {
     fn locked_and_missing_fail_closed() {
         assert!(get_stored_hash(os("no-such-user-xyz-123").as_os_str()).is_none());
         assert!(get_stored_hash(os("").as_os_str()).is_none());
+        assert!(get_stored_hash(os("nobody").as_os_str()).is_none());
         use std::os::unix::ffi::OsStringExt;
         let bad = OsString::from_vec(vec![b'a', 0]);
         assert!(get_stored_hash(bad.as_os_str()).is_none());
@@ -269,12 +279,22 @@ mod tests {
         let pw = b"test-password-123";
         let salt = CString::new("do").unwrap();
         let pw_c = CString::new(pw.as_slice()).unwrap();
-        let out = unsafe { crypt(pw_c.as_ptr(), salt.as_ptr()) };
-        assert!(!out.is_null());
-        let hash = unsafe { CStr::from_ptr(out) }.to_bytes();
+        let hash = crypt_locked(&pw_c, &salt).expect("crypt must produce a hash");
         assert!(!hash.is_empty());
         assert!(!hash.starts_with(b"*"));
-        let hash_os = OsString::from_vec(hash.to_vec());
+        let hash_os = OsString::from_vec(hash.clone());
+        assert!(crypt_verify(pw, hash_os.as_os_str()));
+        assert!(!crypt_verify(b"wrong-password", hash_os.as_os_str()));
+    }
+
+    #[test]
+    fn crypt_roundtrip_sha512_crypt() {
+        let pw = b"test-password-123";
+        let salt = CString::new("$6$testsalt$").unwrap();
+        let pw_c = CString::new(pw.as_slice()).unwrap();
+        let hash = crypt_locked(&pw_c, &salt).expect("crypt must produce a hash");
+        assert!(hash.starts_with(b"$6$"), "libcrypt must support sha512crypt");
+        let hash_os = OsString::from_vec(hash.clone());
         assert!(crypt_verify(pw, hash_os.as_os_str()));
         assert!(!crypt_verify(b"wrong-password", hash_os.as_os_str()));
     }
