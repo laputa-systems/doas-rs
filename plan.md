@@ -9,7 +9,9 @@ security are release requirements, not follow-ups. Land accepted slices on
 
 - Goal: working Rust `doas` binary, Alpine-edge/dev-qualified, aarch64 musl.
 - Base: `3cef827` (empty repo: this doc + pinned nightly). Nothing red.
-- Accepted: `S-15` (2026-10-28, deterministic adversarial suite with fault injection green in container). Next: `S-16`. No parked slices.
+- Accepted: `S-16` (2026-10-28, release with install and rollback verified in fresh container). Campaign complete. No parked slices.
+- Release (aarch64 musl, `alpine:edge`): `target/release/doas` `825896` bytes (`806.5K`), `sha256 0de3a83e83fcade1d4834b190340362fff242a218eb4c35bd2bdec7d5c58d8a8` identical across rebuilds, `ldd` reports static (no dynamic deps; `libcrypt.a` linked statically, `libc`/`rustix` only Rust deps). Cold `doas -C` `0.00s` vs oracle `0.00s`, no `2x` regression. Fresh `alpine:edge` install and rollback verified per `README.md`.
+- Maturity: experimental. Production use stays blocked on independent security review (`P1`) and the open TTY proxy gap (`CVE-2023-28339`, full bidirectional signal and job-control forwarding not yet wired). Do not use outside disposable containers or VMs.
 - Blocking release issue (TTY): PTY open, session, echo, and winsize land in `S-13`; full bidirectional proxy with signal and job-control forwarding is not yet wired into exec, so `CVE-2023-28339` remains open. Production claim stays blocked (P1); do not share this gap silently.
 - D2: syslog uses `LOG_AUTHPRIV` with ident `doas`, `LOG_PID|LOG_NDELAY`; constant `%s` formats only, no journald.
 - Loop timings (aarch64, OrbStack, `doas-dev` rebuild): `docker build` 1.7s (cached toolchain), `cargo clippy` 0.91s, `cargo test` 1.74s; `cargo tree` shows only `libc`/`rustix` (+transitives). `docker run --rm` hangs on attach here; verification uses `docker create` + `docker start -a` (same image/args), no `--rm` cleanup.
