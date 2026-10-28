@@ -179,10 +179,6 @@ pub fn resolve_group(name: &OsStr) -> Option<u32> {
     parse_numeric_id(name)
 }
 
-pub fn resolve_target(name: &OsStr) -> Option<u32> {
-    resolve_user(name)
-}
-
 pub fn current_groups() -> Vec<u32> {
     let ngroups = unsafe { libc::getgroups(0, std::ptr::null_mut()) };
     if ngroups < 0 {

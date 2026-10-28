@@ -11,6 +11,7 @@ WORKDIR /work
 
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY src ./src
+COPY tests ./tests
 
 RUN cargo fetch --locked
 

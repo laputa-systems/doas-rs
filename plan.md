@@ -9,7 +9,7 @@ security are release requirements, not follow-ups. Land accepted slices on
 
 - Goal: working Rust `doas` binary, Alpine-edge/dev-qualified, aarch64 musl.
 - Base: `3cef827` (empty repo: this doc + pinned nightly). Nothing red.
-- Accepted: `S-13` (2026-10-28, PTY primitives with lifecycle and winsize green in container). Next: `S-14`. No parked slices.
+- Accepted: `S-14` (2026-10-28, oracle differential corpus with allowlisted diffs green in container). Next: `S-15`. No parked slices.
 - Blocking release issue (TTY): PTY open, session, echo, and winsize land in `S-13`; full bidirectional proxy with signal and job-control forwarding is not yet wired into exec, so `CVE-2023-28339` remains open. Production claim stays blocked (P1); do not share this gap silently.
 - D2: syslog uses `LOG_AUTHPRIV` with ident `doas`, `LOG_PID|LOG_NDELAY`; constant `%s` formats only, no journald.
 - Loop timings (aarch64, OrbStack, `doas-dev` rebuild): `docker build` 1.7s (cached toolchain), `cargo clippy` 0.91s, `cargo test` 1.74s; `cargo tree` shows only `libc`/`rustix` (+transitives). `docker run --rm` hangs on attach here; verification uses `docker create` + `docker start -a` (same image/args), no `--rm` cleanup.

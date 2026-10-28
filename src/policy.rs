@@ -123,6 +123,7 @@ pub fn last_match<'a>(
     last
 }
 
+#[allow(dead_code)]
 pub fn is_permitted(
     rules: &[Rule],
     req: &Request<'_>,

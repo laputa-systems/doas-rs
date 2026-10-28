@@ -4,10 +4,6 @@ use std::path::{Path, PathBuf};
 
 use crate::load::SAFE_PATH;
 
-pub fn safe_path() -> &'static str {
-    SAFE_PATH
-}
-
 pub fn resolve_cmd(cmd: &OsStr, rule_has_cmd: bool, former_path: &OsStr) -> Result<PathBuf, String> {
     let b = cmd.as_bytes();
     if b.is_empty() || b.contains(&0) {
