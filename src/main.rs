@@ -7,6 +7,7 @@ use std::process::ExitCode;
 use rustix::process::{Gid, Uid, getgid, getuid};
 
 mod cli;
+mod config;
 
 struct UntrustedInput {
     argv: Vec<OsString>,
@@ -138,6 +139,38 @@ fn run() -> Result<ExitCode, Denied> {
     let policy = UntrustedInput::capture().parse()?;
     if policy.cli.clear_timestamp {
         return Ok(ExitCode::SUCCESS);
+    }
+    if let Some(cfg_path) = policy.cli.config_check.clone() {
+        let path = std::path::PathBuf::from(&cfg_path);
+        let data = std::fs::read(&path).map_err(|_| {
+            let UntrustedInput { uid, gid, .. } = &policy.input;
+            Denied {
+                stage: "config-check",
+                argv: vec![cfg_path.clone()],
+                uid: *uid,
+                gid: *gid,
+            }
+        })?;
+        let file_label = path.to_string_lossy().into_owned();
+        if config::parse_bytes(&data, &file_label).is_err() {
+            let UntrustedInput { uid, gid, .. } = &policy.input;
+            return Err(Denied {
+                stage: "config-check",
+                argv: vec![cfg_path],
+                uid: *uid,
+                gid: *gid,
+            });
+        }
+        if policy.cli.command.is_empty() {
+            return Ok(ExitCode::SUCCESS);
+        }
+        let UntrustedInput { argv, uid, gid } = policy.input;
+        return Err(Denied {
+            stage: "config-check",
+            argv,
+            uid,
+            gid,
+        });
     }
     policy
         .authorize()?
