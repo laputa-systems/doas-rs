@@ -57,6 +57,24 @@ via `git ls-remote` and the GitHub commit API.
   source tarball sha512
   `4a93ff477413c859ba2702e688fa4f83248fff85e61e12336838a1e9aa1a8d9963a9782e4bc5e58e8d04b86c2c8ceb6b235ae9d3b32b3e548a2514a43653137d`.
 
+## Password hash provider
+
+No custom cryptography. Password checks call the system `crypt`
+through the build container's static `libcrypt.a` (Alpine
+`musl-dev`, musl's bundled crypt provider), linked statically into
+the musl binary. Provenance: the same Alpine edge container pinned
+by `Dockerfile`/`rust-toolchain.toml`; `ldd` on the artifact reports
+a static binary.
+
+Verified by roundtrip tests (`auth::tests::crypt_roundtrip_*`): DES
+and `$6$` sha512crypt verify and distinguish wrong passwords through
+this provider. Limitations: any modular hash the provider does not
+implement fails closed — `crypt` returns `*0`/`*1`, which the verifier
+rejects like any `*`-prefixed hash, as do empty, `!`-locked, and
+missing shadow entries. New hash families (e.g. yescrypt) are
+supported only if the build container's provider implements them;
+there is deliberately no fallback and no bundled implementation.
+
 ## Requirement split
 
 - Canonical (from OpenBSD `usr.bin/doas`): config grammar and
