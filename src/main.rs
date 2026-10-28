@@ -537,7 +537,151 @@ impl Exec {
     }
 }
 
+fn drop_to_invoking(uid: u32, gid: u32) -> Result<(), String> {
+    let euid = unsafe { libc::geteuid() };
+    if euid != 0 {
+        let ruid = unsafe { libc::getuid() };
+        let rgid = unsafe { libc::getgid() };
+        if ruid != uid || rgid != gid {
+            return Err("invoking identity mismatch".to_string());
+        }
+        return Ok(());
+    }
+    let ruid = unsafe { libc::getuid() };
+    if ruid != uid {
+        return Err("invoking uid mismatch".to_string());
+    }
+    if let Some(entry) = identity::lookup_user_by_uid(uid) {
+        let cname = CString::new(entry.name.as_bytes())
+            .map_err(|_| "invalid invoking name".to_string())?;
+        if unsafe { libc::setresgid(gid, gid, gid) } != 0 {
+            return Err("setresgid drop failed".to_string());
+        }
+        if unsafe { libc::initgroups(cname.as_ptr(), gid as libc::gid_t) } != 0 {
+            return Err("initgroups drop failed".to_string());
+        }
+    } else {
+        let g = gid as libc::gid_t;
+        if unsafe { libc::setgroups(1, &g) } != 0 {
+            return Err("setgroups drop failed".to_string());
+        }
+        if unsafe { libc::setresgid(gid, gid, gid) } != 0 {
+            return Err("setresgid drop failed".to_string());
+        }
+    }
+    if unsafe { libc::setresuid(uid, uid, uid) } != 0 {
+        return Err("setresuid drop failed".to_string());
+    }
+    let nru = unsafe { libc::getuid() };
+    let neu = unsafe { libc::geteuid() };
+    let nrg = unsafe { libc::getgid() };
+    let neg = unsafe { libc::getegid() };
+    if nru != uid || neu != uid || nrg != gid || neg != gid {
+        return Err("privilege drop verification failed".to_string());
+    }
+    let mut r = 0u32;
+    let mut e = 0u32;
+    let mut s = 0u32;
+    if unsafe { libc::getresuid(&mut r, &mut e, &mut s) } != 0 {
+        return Err("getresuid failed".to_string());
+    }
+    if r != uid || e != uid || s != uid {
+        return Err("saved uid not dropped".to_string());
+    }
+    let mut rg = 0u32;
+    let mut eg = 0u32;
+    let mut sg = 0u32;
+    if unsafe { libc::getresgid(&mut rg, &mut eg, &mut sg) } != 0 {
+        return Err("getresgid failed".to_string());
+    }
+    if rg != gid || eg != gid || sg != gid {
+        return Err("saved gid not dropped".to_string());
+    }
+    if (s == 0 || sg == 0) && (uid != 0 || gid != 0) {
+        return Err("root regain possible".to_string());
+    }
+    Ok(())
+}
+
+fn read_bounded_file(path: &std::path::Path, display: &str) -> Result<Vec<u8>, String> {
+    let bytes = path.as_os_str().as_bytes();
+    if bytes.contains(&0) {
+        return Err(format!("doas: {display}: invalid path"));
+    }
+    let cpath = CString::new(bytes).map_err(|_| format!("doas: {display}: invalid path"))?;
+    let fd = unsafe {
+        libc::openat(
+            libc::AT_FDCWD,
+            cpath.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if fd < 0 {
+        let e = std::io::Error::last_os_error();
+        return Err(format!("doas: {display}: {e}"));
+    }
+    let mut sb: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::fstat(fd, &mut sb) } != 0 {
+        let e = std::io::Error::last_os_error();
+        unsafe { libc::close(fd) };
+        return Err(format!("doas: {display}: {e}"));
+    }
+    if (sb.st_mode & libc::S_IFMT) != libc::S_IFREG {
+        unsafe { libc::close(fd) };
+        return Err(format!("doas: {display}: not a regular file"));
+    }
+    if sb.st_size < 0 || sb.st_size as u64 > config::MAX_FILE_BYTES as u64 {
+        unsafe { libc::close(fd) };
+        return Err(format!("doas: {display}: too large"));
+    }
+    let mut data = Vec::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        if data.len() > config::MAX_FILE_BYTES {
+            unsafe { libc::close(fd) };
+            return Err(format!("doas: {display}: too large"));
+        }
+        let n = unsafe {
+            libc::read(
+                fd,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                buf.len(),
+            )
+        };
+        if n < 0 {
+            let e = std::io::Error::last_os_error();
+            if e.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            unsafe { libc::close(fd) };
+            return Err(format!("doas: {display}: {e}"));
+        }
+        if n == 0 {
+            break;
+        }
+        data.extend_from_slice(&buf[..n as usize]);
+        if data.len() > config::MAX_FILE_BYTES {
+            unsafe { libc::close(fd) };
+            return Err(format!("doas: {display}: too large"));
+        }
+    }
+    unsafe { libc::close(fd) };
+    Ok(data)
+}
+
 fn run_check_mode(policy: ParsedPolicy) -> Result<ExitCode, Denied> {
+    let invoking_uid = policy.input.uid.as_raw();
+    let invoking_gid = policy.input.gid.as_raw();
+    if let Err(e) = drop_to_invoking(invoking_uid, invoking_gid) {
+        eprintln!("doas: privilege drop failed: {e}");
+        let UntrustedInput { argv, uid, gid } = &policy.input;
+        return Err(Denied {
+            stage: "exec",
+            argv: argv.clone(),
+            uid: *uid,
+            gid: *gid,
+        });
+    }
     let cfg_path = policy.cli.config_check.clone().unwrap();
     let cfg_str = cfg_path.to_string_lossy().into_owned();
     let rules: Vec<config::Rule> = if PathBuf::from(&cfg_path).is_dir() {
@@ -557,13 +701,18 @@ fn run_check_mode(policy: ParsedPolicy) -> Result<ExitCode, Denied> {
         }
         let mut combined: Vec<u8> = Vec::new();
         for n in &names {
-            match std::fs::read(n) {
+            let display = n.to_string_lossy().into_owned();
+            match read_bounded_file(n, &display) {
                 Ok(d) => {
+                    if combined.len() + d.len() + 1 > config::MAX_FILE_BYTES {
+                        eprintln!("doas: {cfg_str}: too large");
+                        return Ok(ExitCode::from(1));
+                    }
                     combined.extend_from_slice(&d);
                     combined.push(b'\n');
                 }
                 Err(e) => {
-                    eprintln!("doas: {cfg_str}: {e}");
+                    eprintln!("{e}");
                     return Ok(ExitCode::from(1));
                 }
             }
@@ -576,10 +725,10 @@ fn run_check_mode(policy: ParsedPolicy) -> Result<ExitCode, Denied> {
             }
         }
     } else {
-        let data = match std::fs::read(PathBuf::from(&cfg_path)) {
+        let data = match read_bounded_file(&PathBuf::from(&cfg_path), &cfg_str) {
             Ok(d) => d,
             Err(e) => {
-                eprintln!("doas: {cfg_str}: {e}");
+                eprintln!("{e}");
                 return Ok(ExitCode::from(1));
             }
         };
@@ -730,5 +879,60 @@ mod tests {
         assert_eq!(captured.uid, rustix::process::getuid());
         assert_eq!(captured.gid, rustix::process::getgid());
         assert!(!captured.argv.is_empty());
+    }
+
+    #[test]
+    fn drop_to_self_succeeds_unprivileged() {
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
+        assert!(drop_to_invoking(uid, gid).is_ok());
+    }
+
+    #[test]
+    fn drop_with_mismatch_fails() {
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
+        let bad_uid = uid.wrapping_add(1);
+        if bad_uid != uid {
+            assert!(drop_to_invoking(bad_uid, gid).is_err());
+        }
+    }
+
+    #[test]
+    fn bounded_read_rejects_symlink_and_dir() {
+        let base = std::env::temp_dir().join(format!("doas-check-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let real = base.join("real.conf");
+        std::fs::write(&real, b"permit alice\n").unwrap();
+        let link = base.join("link.conf");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        assert!(read_bounded_file(&link, "link").is_err());
+        assert!(read_bounded_file(&base, "dir").is_err());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn bounded_read_enforces_size_limit() {
+        let base = std::env::temp_dir().join(format!("doas-big-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let big = base.join("big.conf");
+        let data = vec![b'a'; config::MAX_FILE_BYTES + 1];
+        std::fs::write(&big, &data).unwrap();
+        assert!(read_bounded_file(&big, "big").is_err());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn bounded_read_ok_for_small_regular() {
+        let base = std::env::temp_dir().join(format!("doas-small-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let f = base.join("ok.conf");
+        std::fs::write(&f, b"permit alice\n").unwrap();
+        let d = read_bounded_file(&f, "ok").unwrap();
+        assert_eq!(d, b"permit alice\n");
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
