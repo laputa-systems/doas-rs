@@ -5,11 +5,11 @@ Linux (aarch64 musl, Alpine edge). Real setuid-root boundary:
 correctness and security are release requirements, not follow-ups.
 
 > Maturity: experimental. Production use is blocked on independent
-> security review and on the open TTY isolation gap
-> (`CVE-2023-28339`; see `docs/differences.md`). The privileged
-> session currently shares the invoking terminal. No warranty. Use
-> only in disposable containers or VMs. Never install an experimental
-> setuid binary on a host you care about.
+> security review. Interactive use is refused while the kernel leaves
+> `TIOCSTI` enabled (`/proc/sys/dev/tty/legacy_tiocsti` reads `1`,
+> `CVE-2023-28339`); set it to `0` or invoke non-interactively. No
+> warranty. Use only in disposable containers or VMs. Never install an
+> experimental setuid binary on a host you care about.
 
 ## Usage
 
@@ -84,9 +84,7 @@ testing policy changes.
 
 ## License
 
-No license is declared yet: there is no `LICENSE` file and
-`Cargo.toml` names none. Do not publish or distribute builds until
-the owner chooses one.
+MIT License; see `LICENSE`.
 
 ## Differences from the oracle
 
