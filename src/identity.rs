@@ -1,12 +1,3 @@
-//! System identity resolution for the Linux port.
-//!
-//! Names resolve through the system databases first, then fall back to
-//! decimal IDs in `0..=65534`. `65535` and larger, empty, NUL-containing,
-//! and unknown names fail closed to `None`. Supplementary groups for the
-//! invoking user come from `getgroups` plus the primary gid. Locked,
-//! empty, or missing shadow entries are not authenticated here; they
-//! fail closed in the authentication gate which requires a usable hash.
-
 use std::ffi::{CStr, CString, OsStr, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 

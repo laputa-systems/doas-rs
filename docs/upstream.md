@@ -51,7 +51,7 @@ via `git ls-remote` and the GitHub commit API.
   `rowhammer.patch` `761ffb421cb89c5b142a1b2a1bebdf753071d22e`;
   `doas.conf` `d616d35f862bff42d12cce559cd6e6110661e89e`;
   `doas.post-upgrade` `113f801d39f527e64b1fdf431dc118e29f901763`.
-- Flags feeding the S-02 image: `./configure --prefix=/usr
+- Flags feeding the dev image: `./configure --prefix=/usr
   --without-pam --with-timestamp --with-doas-confdir`; safe PATH
   `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
   source tarball sha512

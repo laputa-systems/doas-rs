@@ -5,19 +5,43 @@ Linux (aarch64 musl, Alpine edge). Real setuid-root boundary:
 correctness and security are release requirements, not follow-ups.
 
 > Maturity: experimental. Production use is blocked on independent
-> security review (P1) and on the open TTY isolation gap
-> (`CVE-2023-28339`, see Status). The privileged proxy does not yet
-> forward signals or job control through a fresh PTY; sharing the
-> invoking terminal remains the current behavior. No warranty. Use only
-> in disposable containers or VMs. Never install an experimental setuid
-> binary on a host you care about.
+> security review and on the open TTY isolation gap
+> (`CVE-2023-28339`; see `docs/differences.md`). The privileged
+> session currently shares the invoking terminal. No warranty. Use
+> only in disposable containers or VMs. Never install an experimental
+> setuid binary on a host you care about.
 
-## Install (fresh Alpine edge container, aarch64)
+## Usage
+
+`usage: doas [-Lns] [-C config] [-u user] command [args]`
+
+Run `doas command [args]` as root (`-u user` for another target,
+`-s` for a shell, `-n` to fail instead of prompting, `-L` to forget
+persisted approval). `doas -C config [command [args]]` checks
+policy and prints `permit` or `deny` without executing. Rules live
+in `/etc/doas.conf`, then `/etc/doas.d/*.conf`; see
+`docs/doas.conf.example`.
+
+## Install (Alpine edge, aarch64)
+
+Build the binary with the pinned toolchain (`Dockerfile`,
+`rust-toolchain.toml`):
+
+```sh
+docker build -t doas-dev .
+docker create --name doas-rel doas-dev cargo build --release
+docker start -a doas-rel
+docker cp doas-rel:/work/target/release/doas ./doas
+docker rm doas-rel
+```
+
+Copy `./doas` and `docs/doas.conf.example` to the Alpine host,
+then as root:
 
 ```sh
 apk add --no-cache ca-certificates
-install -m 4755 target/aarch64-unknown-linux-musl/release/doas /usr/local/bin/doas
-install -m 640 docs/doas.conf.example /etc/doas.conf
+install -m 4755 doas /usr/local/bin/doas
+install -m 640 doas.conf.example /etc/doas.conf
 mkdir -m 750 -p /etc/doas.d
 mkdir -m 700 -p /run/doas
 doas -C /etc/doas.conf
@@ -26,7 +50,7 @@ chmod 640 /etc/doas.conf
 doas -C /etc/doas.conf id
 ```
 
-Verify (numbers from `S-16`, `alpine:edge` aarch64, `doas-dev`):
+Verify (measured on `alpine:edge` aarch64):
 
 ```sh
 ldd /usr/local/bin/doas
@@ -51,12 +75,18 @@ size-is-logged rule.
 ```sh
 rm -f /usr/local/bin/doas
 rm -rf /etc/doas.d /run/doas
-cp /usr/share/doc/doas/doas.conf.example /etc/doas.conf
+cp docs/doas.conf.example /etc/doas.conf
 ```
 
 If locked out, reboot from trusted media, mount the rootfs, and remove
 the setuid binary and config above. Keep a root shell open while
 testing policy changes.
+
+## License
+
+No license is declared yet: there is no `LICENSE` file and
+`Cargo.toml` names none. Do not publish or distribute builds until
+the owner chooses one.
 
 ## Differences from the oracle
 
