@@ -12,6 +12,8 @@ mod config;
 mod env;
 #[allow(dead_code)]
 mod policy;
+#[allow(dead_code)]
+mod identity;
 
 struct UntrustedInput {
     argv: Vec<OsString>,
