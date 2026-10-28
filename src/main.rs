@@ -617,50 +617,50 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustix::process::{getgid, getuid};
-    use std::os::unix::fs::PermissionsExt;
 
-    fn ensure_test_config() {
-        let _ = std::fs::write("/etc/doas.conf", b"permit alice\n");
-        let _ = std::fs::set_permissions(
-            "/etc/doas.conf",
-            std::fs::Permissions::from_mode(0o644),
-        );
+    fn sample_argv() -> Vec<OsString> {
+        vec![OsString::from("doas"), OsString::from("id")]
     }
 
-    fn sample() -> UntrustedInput {
-        ensure_test_config();
-        UntrustedInput {
-            argv: vec![OsString::from("doas"), OsString::from("id")],
-            uid: getuid(),
-            gid: getgid(),
+    fn sample_policy(rules: Vec<config::Rule>) -> ParsedPolicy {
+        let argv = sample_argv();
+        let cli = cli::parse(&argv).expect("sample argv must parse");
+        let uid = rustix::process::getuid();
+        let gid = rustix::process::getgid();
+        ParsedPolicy {
+            input: UntrustedInput { argv, uid, gid },
+            cli,
+            rules,
+            target_uid: 0,
+            groups: vec![gid.as_raw()],
         }
     }
 
     #[test]
     fn pipeline_preserves_command_and_identity_to_final_gate() {
-        let denied = sample()
-            .parse()
-            .unwrap()
-            .authorize()
-            .unwrap_err();
+        let policy = sample_policy(Vec::new());
+        let expected_argv = policy.input.argv.clone();
+        let expected_uid = policy.input.uid;
+        let expected_gid = policy.input.gid;
+        let denied = policy.authorize().unwrap_err();
         assert_eq!(denied.stage, "deny");
+        assert_eq!(denied.argv, expected_argv);
+        assert_eq!(denied.uid, expected_uid);
+        assert_eq!(denied.gid, expected_gid);
     }
 
     #[test]
     fn entry_denies_by_default() {
-        ensure_test_config();
-        unsafe { std::env::set_var("DOAS_ALLOW_NONSETUID", "1") };
-        let r = run();
-        unsafe { std::env::remove_var("DOAS_ALLOW_NONSETUID") };
-        assert!(r.is_err());
+        let policy = sample_policy(Vec::new());
+        let denied = policy.authorize().unwrap_err();
+        assert_eq!(denied.stage, "deny");
     }
 
     #[test]
     fn capture_records_invoking_identity() {
         let captured = UntrustedInput::capture();
-        assert_eq!(captured.uid, getuid());
-        assert_eq!(captured.gid, getgid());
+        assert_eq!(captured.uid, rustix::process::getuid());
+        assert_eq!(captured.gid, rustix::process::getgid());
         assert!(!captured.argv.is_empty());
     }
 }

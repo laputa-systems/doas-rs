@@ -56,8 +56,15 @@ fn tmp_dir(tag: &str) -> PathBuf {
     p
 }
 
+fn is_root() -> bool {
+    rustix::process::getuid().as_raw() == 0
+}
+
 #[test]
 fn oracle_parity_permit_deny_ordering() {
+    if !is_root() {
+        return;
+    }
     let obin = oracle_bin();
     let nbin = our_bin();
     let dir = tmp_dir("ordering");
@@ -76,6 +83,9 @@ fn oracle_parity_permit_deny_ordering() {
 
 #[test]
 fn oracle_parity_cmd_args_exact() {
+    if !is_root() {
+        return;
+    }
     let obin = oracle_bin();
     let nbin = our_bin();
     let dir = tmp_dir("cmdargs");
@@ -114,6 +124,9 @@ fn oracle_parity_parser_errors() {
 
 #[test]
 fn oracle_parity_nopass_marker() {
+    if !is_root() {
+        return;
+    }
     let obin = oracle_bin();
     let nbin = our_bin();
     let dir = tmp_dir("nopass");

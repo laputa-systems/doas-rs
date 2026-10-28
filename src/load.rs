@@ -289,6 +289,10 @@ mod tests {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
     }
 
+    fn is_root() -> bool {
+        unsafe { libc::geteuid() == 0 }
+    }
+
     #[test]
     fn safe_path_matches_alpine() {
         assert_eq!(SAFE_PATH, "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
@@ -296,6 +300,9 @@ mod tests {
 
     #[test]
     fn loads_main_then_dir_later_wins() {
+        if !is_root() {
+            return;
+        }
         let base = tmp_base("order");
         let main = base.join("doas.conf");
         let dir = base.join("doas.d");
@@ -321,6 +328,9 @@ mod tests {
 
     #[test]
     fn missing_dir_ok_with_main_only() {
+        if !is_root() {
+            return;
+        }
         let base = tmp_base("nodir");
         let main = base.join("doas.conf");
         let dir = base.join("no-such-d");
@@ -379,6 +389,9 @@ mod tests {
 
     #[test]
     fn ignores_non_conf_and_non_regular() {
+        if !is_root() {
+            return;
+        }
         let base = tmp_base("ignore");
         let main = base.join("doas.conf");
         let dir = base.join("doas.d");

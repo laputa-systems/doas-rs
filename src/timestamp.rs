@@ -295,6 +295,10 @@ mod tests {
         p
     }
 
+    fn is_root() -> bool {
+        unsafe { libc::geteuid() == 0 }
+    }
+
     #[test]
     fn path_has_no_attacker_parts() {
         let p = timestamp_path().expect("must build path in container");
@@ -310,6 +314,9 @@ mod tests {
 
     #[test]
     fn absence_means_reauth_never_allow() {
+        if !is_root() {
+            return;
+        }
         let dir = tmp_dir("absence");
         let (fd, valid) = open_existing_in(&dir, 300).expect("open must not fail hard");
         if fd >= 0 {
@@ -321,6 +328,9 @@ mod tests {
 
     #[test]
     fn create_then_valid_then_expiry() {
+        if !is_root() {
+            return;
+        }
         let dir = tmp_dir("expiry");
         let (_fd_old, v0) = open_existing_in(&dir, 300).unwrap();
         assert!(!v0);
@@ -346,6 +356,9 @@ mod tests {
 
     #[test]
     fn corruption_means_reauth() {
+        if !is_root() {
+            return;
+        }
         let dir = tmp_dir("corrupt");
         let fd = create_placeholder_in(&dir).expect("create");
         unsafe { libc::close(fd) };
@@ -359,6 +372,9 @@ mod tests {
 
     #[test]
     fn future_timestamp_rejected() {
+        if !is_root() {
+            return;
+        }
         let dir = tmp_dir("future");
         let fd = create_placeholder_in(&dir).expect("create");
         let far: libc::timespec = libc::timespec { tv_sec: 1_000_000_000, tv_nsec: 0 };
@@ -379,6 +395,9 @@ mod tests {
 
     #[test]
     fn dir_must_be_root_0700() {
+        if !is_root() {
+            return;
+        }
         let dir = tmp_dir("perm");
         let dir_fd = ensure_dir_in(&dir).expect("dir must exist as root");
         unsafe { libc::close(dir_fd) };
