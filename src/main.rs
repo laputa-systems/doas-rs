@@ -8,6 +8,8 @@ use rustix::process::{Gid, Uid, getgid, getuid};
 
 mod cli;
 mod config;
+#[allow(dead_code)]
+mod env;
 
 struct UntrustedInput {
     argv: Vec<OsString>,

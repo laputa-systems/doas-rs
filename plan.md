@@ -9,7 +9,7 @@ security are release requirements, not follow-ups. Land accepted slices on
 
 - Goal: working Rust `doas` binary, Alpine-edge/dev-qualified, aarch64 musl.
 - Base: `3cef827` (empty repo: this doc + pinned nightly). Nothing red.
-- Accepted: `S-04` (2026-10-28, bounded config parser with file:line errors green in container). Next: `S-06`. No parked slices.
+- Accepted: `S-06` (2026-10-28, clean-by-default env with keepenv/setenv green in container). Next: `S-05`. No parked slices.
 - Loop timings (aarch64, OrbStack, `doas-dev` rebuild): `docker build` 1.7s (cached toolchain), `cargo clippy` 0.91s, `cargo test` 1.74s; `cargo tree` shows only `libc`/`rustix` (+transitives). `docker run --rm` hangs on attach here; verification uses `docker create` + `docker start -a` (same image/args), no `--rm` cleanup.
 - Foundation proven (2026-10-28): `alpine:edge` runs native aarch64 in Docker here.
 - Resume prompt: `Execute plan.md starting at Status: next slice.`
