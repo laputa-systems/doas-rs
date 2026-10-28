@@ -6,6 +6,8 @@ use std::process::ExitCode;
 
 use rustix::process::{Gid, Uid, getgid, getuid};
 
+mod cli;
+
 struct UntrustedInput {
     argv: Vec<OsString>,
     uid: Uid,
@@ -14,6 +16,7 @@ struct UntrustedInput {
 
 struct ParsedPolicy {
     input: UntrustedInput,
+    cli: cli::Cli,
 }
 
 struct AuthorizedRequest {
@@ -54,12 +57,37 @@ impl UntrustedInput {
     }
 
     fn parse(self) -> Result<ParsedPolicy, Denied> {
-        Ok(ParsedPolicy { input: self })
+        let UntrustedInput { argv, uid, gid } = self;
+        match cli::parse(&argv) {
+            Ok(cli) => Ok(ParsedPolicy {
+                input: UntrustedInput {
+                    argv,
+                    uid,
+                    gid,
+                },
+                cli,
+            }),
+            Err(_) => Err(Denied {
+                stage: "usage",
+                argv,
+                uid,
+                gid,
+            }),
+        }
     }
 }
 
 impl ParsedPolicy {
     fn authorize(self) -> Result<AuthorizedRequest, Denied> {
+        if self.cli.config_check.is_some() {
+            let UntrustedInput { argv, uid, gid } = self.input;
+            return Err(Denied {
+                stage: "config-check",
+                argv,
+                uid,
+                gid,
+            });
+        }
         Ok(AuthorizedRequest { policy: self })
     }
 }
@@ -89,7 +117,11 @@ impl Exec {
                 AuthenticatedRequest {
                     request:
                         AuthorizedRequest {
-                            policy: ParsedPolicy { input: UntrustedInput { argv, uid, gid } },
+                            policy:
+                                ParsedPolicy {
+                                    input: UntrustedInput { argv, uid, gid },
+                                    ..
+                                },
                         },
                 },
         } = self.prepared;
@@ -103,8 +135,11 @@ impl Exec {
 }
 
 fn run() -> Result<ExitCode, Denied> {
-    UntrustedInput::capture()
-        .parse()?
+    let policy = UntrustedInput::capture().parse()?;
+    if policy.cli.clear_timestamp {
+        return Ok(ExitCode::SUCCESS);
+    }
+    policy
         .authorize()?
         .authenticate()?
         .prepare()?
@@ -116,6 +151,10 @@ fn main() -> ExitCode {
     match run() {
         Ok(code) => code,
         Err(denied) => {
+            if denied.stage == "usage" {
+                eprintln!("{}", cli::USAGE);
+                return ExitCode::FAILURE;
+            }
             let stage = denied.stage;
             let argv = denied.argv;
             let uid = denied.uid.as_raw();
