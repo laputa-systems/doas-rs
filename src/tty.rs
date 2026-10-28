@@ -10,6 +10,14 @@ pub fn should_isolate() -> bool {
     !tiocsti_disabled()
 }
 
+pub fn stdin_is_tty() -> bool {
+    unsafe { libc::isatty(0) == 1 }
+}
+
+pub fn refuse_interactive(stdin_tty: bool, tiocsti_enabled: bool) -> bool {
+    stdin_tty && tiocsti_enabled
+}
+
 pub fn open_pty() -> Result<(i32, i32, String), String> {
     let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY | libc::O_CLOEXEC) };
     if master < 0 {
@@ -53,6 +61,15 @@ mod tests {
     fn tiocsti_check_does_not_panic() {
         let _ = tiocsti_disabled();
         let _ = should_isolate();
+        let _ = stdin_is_tty();
+    }
+
+    #[test]
+    fn refuse_gate_matrix() {
+        assert!(refuse_interactive(true, true));
+        assert!(!refuse_interactive(true, false));
+        assert!(!refuse_interactive(false, true));
+        assert!(!refuse_interactive(false, false));
     }
 
     #[test]

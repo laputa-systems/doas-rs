@@ -381,6 +381,20 @@ impl Exec {
             .map(|p| OsString::from(p.to_string_lossy().into_owned()))
             .unwrap_or_else(|_| OsString::from("(failed)"));
         let nolog = request.request.permit.options.contains(config::Options::NOLOG);
+        if crate::tty::refuse_interactive(crate::tty::stdin_is_tty(), crate::tty::should_isolate()) {
+            log::log_deny(
+                invoking_name.as_os_str(),
+                cmdline.as_os_str(),
+            );
+            eprintln!("doas: refusing interactive use with TIOCSTI enabled (CVE-2023-28339); set /proc/sys/dev/tty/legacy_tiocsti to 0 or use non-interactive invocation");
+            let UntrustedInput { argv, uid, gid } = &request.request.policy.input;
+            return Err(Denied {
+                stage: "tty",
+                argv: argv.clone(),
+                uid: *uid,
+                gid: *gid,
+            });
+        }
         log::log_permit(
             invoking_name.as_os_str(),
             cmdline.as_os_str(),

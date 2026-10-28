@@ -46,13 +46,21 @@ scopes the name to `ppid-sid-tty-start-uid`. Group is not trusted
 from the invoking user. Absence or corruption means re-auth, never
 allow. `-L` clears the caller-scoped file and is idempotent.
 
-## D6: TTY isolation via fresh PTY when `TIOCSTI` is enabled
+## D6: TTY strategy is detect plus refuse, not a byte relay
 
 Oracle shares the invoking terminal, leaving `CVE-2023-28339` open
-(upstream issue `#106`). This port detects `legacy_tiocsti`; when the
-old ioctl is enabled it allocates a fresh PTY for the privileged
-session and proxies input and output. Until the full proxy lands the
-gap is recorded as blocking and never silently allowed.
+(upstream issue `#106`). A parent-side byte relay would not close it:
+bytes an attacker pushes into the invoking terminal with `TIOCSTI`
+travel the relay into the privileged session exactly like keystrokes,
+so a proxy is security theater here. The only userspace strategy that
+closes the CVE scenario is detection plus refusal. This port reads
+`legacy_tiocsti`; interactive use (terminal stdin) is refused while
+`TIOCSTI` is enabled, with an actionable error, and proceeds by direct
+exec once the kernel disables it. Non-interactive use is unchanged
+from the oracle: pipes and files pass straight through, so pipelines
+keep working. Residual, stated openly: a target program that
+explicitly opens `/dev/tty` shares the invoking terminal exactly as
+it does under the oracle; no new exposure, no silent fix.
 
 ## D7: `crypt` backend is system `libcrypt` (DES on musl)
 
