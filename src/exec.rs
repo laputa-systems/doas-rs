@@ -72,6 +72,19 @@ pub fn resolve_cmd(cmd: &OsStr, rule_has_cmd: bool, former_path: &OsStr) -> Resu
     Err("command not found in PATH".to_string())
 }
 
+pub fn ensure_stdio_open() {
+    for fd in 0..3 {
+        if unsafe { libc::fcntl(fd, libc::F_GETFD) } < 0 {
+            let c = std::ffi::CString::new("/dev/null").unwrap();
+            let nfd = unsafe { libc::open(c.as_ptr(), libc::O_RDWR | libc::O_CLOEXEC) };
+            if nfd >= 0 && nfd != fd {
+                unsafe { libc::dup2(nfd, fd) };
+                unsafe { libc::close(nfd) };
+            }
+        }
+    }
+}
+
 pub fn close_fds_from_3() {
     #[cfg(target_os = "linux")]
     {

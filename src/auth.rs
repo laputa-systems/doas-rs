@@ -59,6 +59,13 @@ fn cstring_from_bytes(b: &[u8]) -> Option<CString> {
     CString::new(b).ok()
 }
 
+fn zeroize_cstring(s: &mut CString) {
+    let bytes = unsafe {
+        std::slice::from_raw_parts_mut(s.as_ptr() as *mut u8, s.as_bytes().len())
+    };
+    zeroize(bytes);
+}
+
 pub fn crypt_verify(password: &[u8], hash: &OsStr) -> bool {
     let hash_bytes = hash.as_bytes();
     if hash_bytes.is_empty() || hash_bytes.contains(&0) {
@@ -73,13 +80,16 @@ pub fn crypt_verify(password: &[u8], hash: &OsStr) -> bool {
     if password.len() > 1024 {
         return false;
     }
-    let Some(pw_c) = cstring_from_bytes(password) else {
+    let Some(mut pw_c) = cstring_from_bytes(password) else {
         return false;
     };
     let Some(hash_c) = cstring_from_bytes(hash_bytes) else {
+        zeroize_cstring(&mut pw_c);
         return false;
     };
-    let Some(computed) = crypt_locked(&pw_c, &hash_c) else {
+    let computed = crypt_locked(&pw_c, &hash_c);
+    zeroize_cstring(&mut pw_c);
+    let Some(computed) = computed else {
         return false;
     };
     if computed.starts_with(b"*") {
@@ -176,11 +186,27 @@ fn read_password_tty(fd: i32, prompt: &[u8]) -> Result<Vec<u8>, AuthError> {
         unsafe { libc::close(fd) };
         return Err(AuthError::NoTty("tty required".to_string()));
     }
-    let _guard = TermGuard { fd, orig, active: true };
+    let mut blocked: libc::sigset_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        libc::sigemptyset(&mut blocked);
+        libc::sigaddset(&mut blocked, libc::SIGINT);
+        libc::sigaddset(&mut blocked, libc::SIGTERM);
+        libc::sigaddset(&mut blocked, libc::SIGHUP);
+        libc::sigaddset(&mut blocked, libc::SIGQUIT);
+        let mut old: libc::sigset_t = std::mem::zeroed();
+        libc::sigprocmask(libc::SIG_BLOCK, &blocked, &mut old);
+        let res = read_password_inner(fd, prompt, &orig);
+        libc::sigprocmask(libc::SIG_SETMASK, &old, std::ptr::null_mut());
+        res
+    }
+}
+
+fn read_password_inner(fd: i32, prompt: &[u8], orig: &libc::termios) -> Result<Vec<u8>, AuthError> {
+    let _guard = TermGuard { fd, orig: *orig, active: true };
     let _ = unsafe { libc::write(fd, prompt.as_ptr() as *const libc::c_void, prompt.len()) };
     let mut buf: Vec<u8> = Vec::new();
     let mut tmp = [0u8; 256];
-    loop {
+    let result: Result<Vec<u8>, AuthError> = loop {
         let n = unsafe { libc::read(fd, tmp.as_mut_ptr() as *mut libc::c_void, tmp.len()) };
         if n < 0 {
             let e = std::io::Error::last_os_error();
@@ -188,25 +214,44 @@ fn read_password_tty(fd: i32, prompt: &[u8]) -> Result<Vec<u8>, AuthError> {
                 continue;
             }
             let _ = unsafe { libc::write(fd, b"\n".as_ptr() as *const libc::c_void, 1) };
-            return Err(AuthError::Failed(format!("readpassphrase: {e}")));
+            zeroize(&mut buf);
+            zeroize(&mut tmp);
+            break Err(AuthError::Failed(format!("readpassphrase: {e}")));
         }
         if n == 0 {
-            break;
+            break Ok(std::mem::take(&mut buf));
         }
         let chunk = &tmp[..n as usize];
         if let Some(pos) = chunk.iter().position(|&b| b == b'\n') {
             buf.extend_from_slice(&chunk[..pos]);
-            break;
+            break Ok(std::mem::take(&mut buf));
         }
         buf.extend_from_slice(chunk);
+        zeroize(&mut tmp);
         if buf.len() > 1024 {
             zeroize(&mut buf);
             let _ = unsafe { libc::write(fd, b"\n".as_ptr() as *const libc::c_void, 1) };
-            return Err(AuthError::Failed("Authentication failed".to_string()));
+            break Err(AuthError::Failed("Authentication failed".to_string()));
+        }
+    };
+    zeroize(&mut tmp);
+    match result {
+        Ok(mut pw) => {
+            if pw.len() > 1024 {
+                zeroize(&mut pw);
+                let _ = unsafe { libc::write(fd, b"\n".as_ptr() as *const libc::c_void, 1) };
+                unsafe { libc::close(fd) };
+                return Err(AuthError::Failed("Authentication failed".to_string()));
+            }
+            let _ = unsafe { libc::write(fd, b"\n".as_ptr() as *const libc::c_void, 1) };
+            unsafe { libc::close(fd) };
+            Ok(pw)
+        }
+        Err(e) => {
+            unsafe { libc::close(fd) };
+            Err(e)
         }
     }
-    let _ = unsafe { libc::write(fd, b"\n".as_ptr() as *const libc::c_void, 1) };
-    Ok(buf)
 }
 
 pub fn authenticate_user(username: &OsStr, non_interactive: bool) -> Result<(), AuthError> {
@@ -237,7 +282,6 @@ pub fn authenticate_user(username: &OsStr, non_interactive: bool) -> Result<(), 
         String::from_utf8_lossy(&host32)
     );
     let mut pw = read_password_tty(fd, prompt.as_bytes())?;
-    unsafe { libc::close(fd) };
     let ok = crypt_verify(&pw, hash.as_os_str());
     zeroize(&mut pw);
     if ok {

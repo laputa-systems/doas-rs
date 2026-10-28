@@ -843,6 +843,7 @@ fn run() -> Result<ExitCode, Denied> {
 }
 
 fn main() -> ExitCode {
+    exec::ensure_stdio_open();
     exec::close_fds_from_3();
     match run() {
         Ok(code) => code,
