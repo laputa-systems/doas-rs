@@ -1,0 +1,8 @@
+[package]
+name = "doas"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libc = "0.2"
+rustix = { version = "1", features = ["process"] }

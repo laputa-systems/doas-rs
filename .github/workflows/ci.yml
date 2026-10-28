@@ -1,0 +1,16 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  alpine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build dev image
+        run: docker build -t doas-dev .
+      - name: Clippy and tests in Alpine edge
+        run: docker run --rm doas-dev sh -lc 'cargo clippy --all-targets -- -D warnings && cargo test'
