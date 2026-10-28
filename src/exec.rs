@@ -52,8 +52,7 @@ pub fn resolve_cmd(cmd: &OsStr, rule_has_cmd: bool, former_path: &OsStr) -> Resu
 pub fn close_fds_from_3() {
     #[cfg(target_os = "linux")]
     {
-        const SYS_CLOSE_RANGE: libc::c_long = 436;
-        let rc = unsafe { libc::syscall(SYS_CLOSE_RANGE, 3 as libc::c_long, u32::MAX as libc::c_long, 0 as libc::c_long) };
+        let rc = unsafe { libc::syscall(libc::SYS_close_range, 3 as libc::c_long, u32::MAX as libc::c_long, 0 as libc::c_long) };
         if rc == 0 {
             return;
         }
@@ -126,12 +125,20 @@ mod tests {
         let fd1 = f1.as_raw_fd();
         let fd2 = f2.as_raw_fd();
         assert!(fd1 >= 3 && fd2 >= 3);
-        close_fds_from_3();
-        let r1 = unsafe { libc::fcntl(fd1, libc::F_GETFD) };
-        let r2 = unsafe { libc::fcntl(fd2, libc::F_GETFD) };
-        assert!(r1 < 0 && r2 < 0, "fds must be closed");
-        std::mem::forget(f1);
-        std::mem::forget(f2);
+        let pid = unsafe { libc::fork() };
+        assert!(pid >= 0);
+        if pid == 0 {
+            close_fds_from_3();
+            let r1 = unsafe { libc::fcntl(fd1, libc::F_GETFD) };
+            let r2 = unsafe { libc::fcntl(fd2, libc::F_GETFD) };
+            let stdio = unsafe { libc::fcntl(1, libc::F_GETFD) };
+            let ok = r1 < 0 && r2 < 0 && stdio >= 0;
+            unsafe { libc::_exit(if ok { 0 } else { 1 }) };
+        } else {
+            let mut status = 0;
+            unsafe { libc::waitpid(pid, &mut status, 0) };
+            assert_eq!(libc::WEXITSTATUS(status), 0, "fds must be closed");
+        }
     }
 
     #[test]
@@ -144,6 +151,9 @@ mod tests {
 
     #[test]
     fn forked_transition_to_nobody() {
+        if unsafe { libc::geteuid() } != 0 {
+            return;
+        }
         let pid = unsafe { libc::fork() };
         assert!(pid >= 0);
         if pid == 0 {
