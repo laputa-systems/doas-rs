@@ -1,17 +1,14 @@
-#!/bin/sh
-# doas privileged guest test. Reuses the seatd/mdevd disposable-QEMU pattern:
-# cached Tinyland guest-root, pinned virt kernel/initramfs, ext4 image under
-# .work/, KVM, serial console markers, QMP quit, no host mutations.
-#
-# Usage: harness/vm-priv.sh [guest-root kernel initramfs doas-bin]
-# Defaults match harness/VM.md-style cached paths and the release musl binary.
+#!/bin/bash
 set -euo pipefail
+if [ "$#" -ne 4 ]; then
+  echo 'usage: harness/vm-priv.sh guest-root kernel initramfs doas-bin' >&2
+  exit 2
+fi
+GUEST_ROOT=$(realpath "$1")
+KERNEL=$(realpath "$2")
+INITRAMFS=$(realpath "$3")
+DOAS_BIN=$(realpath "$4")
 cd "$(dirname "$0")/.."
-
-GUEST_ROOT="${1:-/home/josh/d/tinyland/.work/guest-root}"
-KERNEL="${2:-/home/josh/d/tinyland/.work/vmlinuz-virt}"
-INITRAMFS="${3:-/home/josh/d/tinyland/.work/initramfs-virt}"
-DOAS_BIN="${4:-target/x86_64-unknown-linux-musl/release/doas}"
 
 for p in "$GUEST_ROOT/init" "$KERNEL" "$INITRAMFS" "$DOAS_BIN"; do
   test -e "$p" || { echo "vm-priv: missing $p" >&2; exit 1; }

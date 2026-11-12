@@ -10,6 +10,7 @@ RUN rustup component add clippy rust-src --toolchain nightly-2026-09-15
 WORKDIR /work
 
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY .cargo .cargo/
 COPY src ./src
 COPY tests ./tests
 
