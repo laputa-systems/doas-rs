@@ -843,7 +843,10 @@ fn run() -> Result<ExitCode, Denied> {
 }
 
 fn main() -> ExitCode {
-    exec::ensure_stdio_open();
+    if let Err(error) = exec::ensure_stdio_open() {
+        eprintln!("doas: cannot repair standard descriptors: {error}");
+        return ExitCode::FAILURE;
+    }
     exec::close_fds_from_3();
     match run() {
         Ok(code) => code,

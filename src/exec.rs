@@ -72,17 +72,36 @@ pub fn resolve_cmd(cmd: &OsStr, rule_has_cmd: bool, former_path: &OsStr) -> Resu
     Err("command not found in PATH".to_string())
 }
 
-pub fn ensure_stdio_open() {
+pub fn ensure_stdio_open() -> std::io::Result<()> {
     for fd in 0..3 {
-        if unsafe { libc::fcntl(fd, libc::F_GETFD) } < 0 {
-            let c = std::ffi::CString::new("/dev/null").unwrap();
-            let nfd = unsafe { libc::open(c.as_ptr(), libc::O_RDWR | libc::O_CLOEXEC) };
-            if nfd >= 0 && nfd != fd {
-                unsafe { libc::dup2(nfd, fd) };
-                unsafe { libc::close(nfd) };
+        if unsafe { libc::fcntl(fd, libc::F_GETFD) } >= 0 {
+            continue;
+        }
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() != Some(libc::EBADF) {
+            return Err(error);
+        }
+        let nfd = unsafe { libc::open(c"/dev/null".as_ptr(), libc::O_RDWR | libc::O_CLOEXEC) };
+        if nfd < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if nfd == fd {
+            if unsafe { libc::fcntl(fd, libc::F_SETFD, 0) } < 0 {
+                return Err(std::io::Error::last_os_error());
             }
+        } else {
+            let result = if unsafe { libc::dup2(nfd, fd) } < 0 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(())
+            };
+            if unsafe { libc::close(nfd) } < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            result?;
         }
     }
+    Ok(())
 }
 
 pub fn close_fds_from_3() {
@@ -302,6 +321,50 @@ mod tests {
             select_shell(None, bad_target.as_os_str()),
             OsString::from("/bin/sh")
         );
+    }
+
+    #[test]
+    fn repaired_stdio_survives_exec() {
+        for mask in 1..8 {
+            let pid = unsafe { libc::fork() };
+            assert!(pid >= 0);
+            if pid == 0 {
+                for fd in 0..3 {
+                    if mask & (1 << fd) != 0 && unsafe { libc::close(fd) } != 0 {
+                        unsafe { libc::_exit(2) };
+                    }
+                }
+                if ensure_stdio_open().is_err() {
+                    unsafe { libc::_exit(4) };
+                }
+                let script = cr#"for fd in 0 1 2; do if [ $((MASK & (1 << fd))) -ne 0 ]; then [ "$(readlink /proc/$$/fd/$fd)" = /dev/null ] || exit 1; fi; done"#;
+                let mask_env = CString::new(format!("MASK={mask}")).unwrap();
+                let argv = [c"sh".as_ptr(), c"-c".as_ptr(), script.as_ptr(), std::ptr::null()];
+                let env = [mask_env.as_ptr(), c"PATH=/usr/bin:/bin".as_ptr(), std::ptr::null()];
+                unsafe { libc::execve(c"/bin/sh".as_ptr(), argv.as_ptr(), env.as_ptr()) };
+                unsafe { libc::_exit(3) };
+            }
+            let mut status = 0;
+            assert_eq!(unsafe { libc::waitpid(pid, &mut status, 0) }, pid);
+            assert!(libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0, "mask {mask}, status {status}");
+        }
+    }
+
+    #[test]
+    fn stdio_repair_reports_open_failure() {
+        let pid = unsafe { libc::fork() };
+        assert!(pid >= 0);
+        if pid == 0 {
+            let limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+            if unsafe { libc::close(0) } != 0 || unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) } != 0 {
+                unsafe { libc::_exit(2) };
+            }
+            let failed = ensure_stdio_open().is_err_and(|error| error.raw_os_error() == Some(libc::EMFILE));
+            unsafe { libc::_exit(if failed { 0 } else { 1 }) };
+        }
+        let mut status = 0;
+        assert_eq!(unsafe { libc::waitpid(pid, &mut status, 0) }, pid);
+        assert!(libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0, "status {status}");
     }
 
     #[test]
