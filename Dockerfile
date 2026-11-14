@@ -1,11 +1,11 @@
 FROM alpine:edge
 
 RUN apk add --no-cache ca-certificates curl gcc musl-dev \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly-2026-09-15
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly-2026-11-09
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-RUN rustup component add clippy rust-src --toolchain nightly-2026-09-15
+RUN rustup component add clippy rust-src --toolchain nightly-2026-11-09
 
 WORKDIR /work
 
