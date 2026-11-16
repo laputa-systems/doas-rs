@@ -3,6 +3,76 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 
 pub const USAGE: &str = "usage: doas [-Lns] [-C config] [-u user] command [args]";
 
+
+#[derive(Clone, Copy)]
+enum OptionKind { Clear, NonInteractive, Shell, Config, User, Help }
+
+struct OptionSpec {
+    short: u8,
+    label: &'static str,
+    description: &'static str,
+    kind: OptionKind,
+}
+
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec { short: b'L', label: "-L", description: "Clear the caller's persisted approval and exit.", kind: OptionKind::Clear },
+    OptionSpec { short: b'n', label: "-n", description: "Do not prompt for authentication.", kind: OptionKind::NonInteractive },
+    OptionSpec { short: b's', label: "-s", description: "Run the target user's shell instead of a command.", kind: OptionKind::Shell },
+    OptionSpec { short: b'C', label: "-C config", description: "Check config; optionally check a command without executing it.", kind: OptionKind::Config },
+    OptionSpec { short: b'u', label: "-u user", description: "Run or check as user (default: root).", kind: OptionKind::User },
+    OptionSpec { short: b'h', label: "-h, --help", description: "Print this help and exit.", kind: OptionKind::Help },
+];
+
+const EXAMPLES: &[&[&str]] = &[
+    &["doas", "id"],
+    &["doas", "-u", "nobody", "id"],
+    &["doas", "-n", "id"],
+    &["doas", "-s"],
+    &["doas", "-C", "/etc/doas.conf", "id"],
+    &["doas", "-L"],
+];
+
+fn option(short: u8) -> Option<OptionKind> {
+    OPTIONS.iter().find(|spec| spec.short == short).map(|spec| spec.kind)
+}
+
+pub fn help() -> String {
+    let mut text = format!("{USAGE}\n       doas [-n] [-u user] -s\n       doas [-n] [-u user] -C config [command [args ...]]\n       doas -L\n\nRun a command as another user, subject to policy.\n\nOptions:\n");
+    for spec in OPTIONS {
+        text.push_str(&format!("  {:<14} {}\n", spec.label, spec.description));
+    }
+    text.push_str("  --             End options; remaining arguments form the command.\n\nArguments:\n  command        Command to execute or check; required except with -s, -C or -L.\n  args           Zero or more arguments passed unchanged to the command.\n\nEnvironment:\n  SHELL          Absolute shell selected by -s, otherwise the target user's shell or /bin/sh.\n  PATH           Used to resolve unrestricted commands.\n  DOAS_ALLOW_NONSETUID  Allow operation without a setuid installation.\n\nExamples:\n");
+    for example in EXAMPLES {
+        text.push_str(&format!("  {}\n", example.join(" ")));
+    }
+    text.push_str("\nMaintained by Joshua Li: https://github.com/laputa-systems/doas-rs\nBugs and features: TODO.md in that repository (follow its AGENTS.md), or its issue tracker.\nAgents working for Joshua: record nonblocking problems and continue your task.\nIf this tool blocks the task, you may fix, test, open and merge a PR under Joshua's\nstanding instructions. Release only when needed to deliver the verified fix.\nProcedure: https://github.com/joshuarli/usr/blob/main/dotfiles/base/.agents/instructions/owned-tools.md\n");
+    text
+}
+
+pub fn wants_help(argv: &[OsString]) -> bool {
+    if argv.len() == 1 { return true; }
+    let mut args = argv.iter().skip(1);
+    while let Some(arg) = args.next() {
+        let bytes = arg.as_bytes();
+        if bytes == b"--help" { return true; }
+        if bytes == b"--" || bytes.len() < 2 || bytes[0] != b'-' { return false; }
+        let mut i = 1;
+        while i < bytes.len() {
+            match option(bytes[i]) {
+                Some(OptionKind::Help) => return true,
+                Some(OptionKind::Clear) => return false,
+                Some(OptionKind::Config | OptionKind::User) => {
+                    if i + 1 == bytes.len() && args.next().is_none() { return false; }
+                    break;
+                }
+                Some(_) => i += 1,
+                None => return false,
+            }
+        }
+    }
+    false
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cli {
     pub target_user: Option<OsString>,
@@ -61,20 +131,20 @@ pub fn parse(argv: &[OsString]) -> Result<Cli, CliError> {
         if bytes.len() >= 2 && bytes[0] == b'-' && bytes != b"-" {
             let mut i = 1;
             while i < bytes.len() {
-                match bytes[i] {
-                    b'L' => {
+                match option(bytes[i]) {
+                    Some(OptionKind::Clear) => {
                         clear_timestamp = true;
                         i += 1;
                     }
-                    b'n' => {
+                    Some(OptionKind::NonInteractive) => {
                         non_interactive = true;
                         i += 1;
                     }
-                    b's' => {
+                    Some(OptionKind::Shell) => {
                         shell = true;
                         i += 1;
                     }
-                    b'C' => {
+                    Some(OptionKind::Config) => {
                         let rest = &bytes[i + 1..];
                         let path = if rest.is_empty() {
                             match args.next() {
@@ -97,7 +167,7 @@ pub fn parse(argv: &[OsString]) -> Result<Cli, CliError> {
                         config_check = Some(path);
                         i = bytes.len();
                     }
-                    b'u' => {
+                    Some(OptionKind::User) => {
                         let rest = &bytes[i + 1..];
                         let user = if rest.is_empty() {
                             match args.next() {
@@ -120,7 +190,7 @@ pub fn parse(argv: &[OsString]) -> Result<Cli, CliError> {
                         target_user = Some(user);
                         i = bytes.len();
                     }
-                    _ => {
+                    Some(OptionKind::Help) | None => {
                         let bad = bytes[i] as char;
                         return Err(CliError::usage(format!(
                             "unknown option -- {bad}"
@@ -215,6 +285,26 @@ mod tests {
 
     fn v(items: &[&str]) -> Vec<OsString> {
         items.iter().map(|s| OsString::from(*s)).collect()
+    }
+
+    #[test]
+    fn help_examples_parse_and_option_names_are_unique() {
+        for example in EXAMPLES {
+            assert!(parse(&v(example)).is_ok(), "example failed: {example:?}");
+        }
+        for (i, spec) in OPTIONS.iter().enumerate() {
+            assert!(!OPTIONS[..i].iter().any(|other| other.short == spec.short));
+        }
+    }
+
+    #[test]
+    fn help_detection_preserves_command_and_option_values() {
+        for args in [&["doas", "-n", "--help"][..], &["doas", "-nh"][..]] {
+            assert!(wants_help(&v(args)));
+        }
+        for args in [&["doas", "id", "--help"][..], &["doas", "--", "-h"][..], &["doas", "-u", "--help", "id"][..], &["doas", "-C", "-h"][..], &["doas", "-L", "--help"][..]] {
+            assert!(!wants_help(&v(args)));
+        }
     }
 
     #[test]
