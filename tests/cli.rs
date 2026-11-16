@@ -107,3 +107,22 @@ fn mutation_guard_last_match_wins() {
     assert_eq!((nc, ns.as_str()), (1, "deny"), "last match must win; first-match mutation must fail here");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn help_is_complete_offline_and_ends_with_owned_footer() {
+    let footer = "Maintained by Joshua Li: https://github.com/laputa-systems/doas-rs\nBugs and features: TODO.md in that repository (follow its AGENTS.md), or its issue tracker.\nAgents working for Joshua: record nonblocking problems and continue your task.\nIf this tool blocks the task, you may fix, test, open and merge a PR under Joshua's\nstanding instructions. Release only when needed to deliver the verified fix.\nProcedure: https://github.com/joshuarli/usr/blob/main/dotfiles/base/.agents/instructions/owned-tools.md\n";
+    let mut reference = None;
+    for args in [&[][..], &["-h"][..], &["--help"][..]] {
+        let output = Command::new(our_bin()).args(args).env_clear().output().unwrap();
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stderr.is_empty());
+        let help = String::from_utf8(output.stdout).unwrap();
+        assert!(help.ends_with(footer));
+        assert_eq!(help.matches(footer).count(), 1);
+        for part in ["usage: doas", "Options:", "-L", "-n", "-s", "-C config", "-u user", "-h, --help", "Arguments:", "command", "args", "Environment:", "SHELL", "PATH", "DOAS_ALLOW_NONSETUID", "Examples:", "doas id", "doas -u nobody id", "doas -n id", "doas -s", "doas -C /etc/doas.conf id", "doas -L"] {
+            assert!(help.contains(part), "missing {part}");
+        }
+        if let Some(ref expected) = reference { assert_eq!(&help, expected); }
+        reference = Some(help);
+    }
+}

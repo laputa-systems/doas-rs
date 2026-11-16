@@ -813,6 +813,10 @@ fn run_check_mode(policy: ParsedPolicy) -> Result<ExitCode, Denied> {
 }
 
 fn run() -> Result<ExitCode, Denied> {
+    if cli::wants_help(&std::env::args_os().collect::<Vec<_>>()) {
+        print!("{}", cli::help());
+        return Ok(ExitCode::SUCCESS);
+    }
     if unsafe { libc::geteuid() } != 0 && std::env::var_os("DOAS_ALLOW_NONSETUID").is_none() {
         let input = UntrustedInput::capture();
         if input.argv.len() > 1

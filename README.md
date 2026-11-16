@@ -14,7 +14,8 @@ requirements, not follow-ups.
 
 ## Usage
 
-`usage: doas [-Lns] [-C config] [-u user] command [args]`
+Run `doas -h` or `doas --help` for the complete command reference and examples.
+Running `doas` without arguments also prints help.
 
 Run `doas command [args]` as root (`-u user` for another target,
 `-s` for a shell, `-n` to fail instead of prompting, `-L` to forget
