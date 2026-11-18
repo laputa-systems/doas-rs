@@ -326,7 +326,7 @@ mod tests {
         let hash = crypt_locked(&pw_c, &salt).expect("crypt must produce a hash");
         assert!(!hash.is_empty());
         assert!(!hash.starts_with(b"*"));
-        let hash_os = OsString::from_vec(hash.clone());
+        let hash_os = OsString::from_vec(hash);
         assert!(crypt_verify(pw, hash_os.as_os_str()));
         assert!(!crypt_verify(b"wrong-password", hash_os.as_os_str()));
     }
@@ -338,7 +338,7 @@ mod tests {
         let pw_c = CString::new(pw.as_slice()).unwrap();
         let hash = crypt_locked(&pw_c, &salt).expect("crypt must produce a hash");
         assert!(hash.starts_with(b"$6$"), "libcrypt must support sha512crypt");
-        let hash_os = OsString::from_vec(hash.clone());
+        let hash_os = OsString::from_vec(hash);
         assert!(crypt_verify(pw, hash_os.as_os_str()));
         assert!(!crypt_verify(b"wrong-password", hash_os.as_os_str()));
     }
