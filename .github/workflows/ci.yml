@@ -21,4 +21,4 @@ jobs:
       - name: Build dev image
         run: docker build -t doas-dev .
       - name: Clippy and tests in Alpine edge
-        run: docker run --rm doas-dev sh -lc 'cargo clippy --all-targets -- -D warnings && cargo test'
+        run: make test-ci
