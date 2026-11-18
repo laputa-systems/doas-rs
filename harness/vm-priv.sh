@@ -88,7 +88,7 @@ else
   exit 1
 fi
 grep -q '^VM_EXIT=0' "$log" || { echo 'guest failed'; tail -40 "$log"; exit 1; }
-for marker in DOAS_PRIV_EXEC_OK DOAS_PRIV_CHECK_OK DOAS_PRIV_CRED_OK; do
+for marker in DOAS_PRIV_EXEC_OK DOAS_PRIV_CHECK_OK DOAS_PRIV_CRED_OK DOAS_PRIV_CLEAR_OK; do
   grep -q "^$marker" "$log" || { echo "missing $marker" >&2; tail -40 "$log"; exit 1; }
 done
 echo "VM_PRIV_OK $log"
