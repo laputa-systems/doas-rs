@@ -66,6 +66,18 @@ README describes the check-only and installed execution paths separately.
 DSLP-6 through DSLP-8 record the findings. Live password entry, ARM64
 installed guest verification and release security review remain separate.
 
+**Cached approval clear**
+
+`doas -L` now reports a timestamp cleanup failure on stderr and exits 1.
+The baseline reproduced exit 0 with empty output when the timestamp store
+was invalid. The [native KVM proof](https://github.com/laputa-systems/doas-rs/actions/runs/44401964822)
+at `0b8b07e` exercised an absent approval and an invalid store inside the
+guest. The new clear marker and the three existing installed-operation
+markers all passed, and the guest exited 0. The static PIE executable
+digest was `338c3fb31475e5187e1b7e419d1fd04886d6ab259710de358c8e2cbacc11f995`.
+The ordinary Alpine tests passed. Reproduce with the same pinned guest
+as the installed-operations check and the updated harness.
+
 ## Tickets
 
 
@@ -97,14 +109,6 @@ installed guest verification and release security review remain separate.
 - **Effort:** M
 
 
-### DSLP-6 · P2 · Report failures clearing cached authorization
-
-- **Area:** CLI · timestamp
-- **Where:** src/main.rs:840; src/timestamp.rs:266; docs/differences.md#d5-timestamp-group-check-hardened-to-root-only
-- **Problem:** The CLI discards the error returned by timestamp clearing. On native ARM64 Alpine 3.24.2 at bd3bf39, an invalid timestamp store made doas -L exit 0 with empty stdout and stderr. The administrator cannot distinguish failed cleanup from a successful clear.
-- **Recommendation:** Keep absent timestamp files idempotent. Send other clear failures through the existing CLI error path and test both results inside a disposable guest or container.
-- **Fix with:** error-model
-- **Effort:** S
 
 
 ### DSLP-7 · P3 · Preserve fragment filenames in config-check diagnostics

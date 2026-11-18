@@ -837,7 +837,10 @@ fn run() -> Result<ExitCode, Denied> {
     }
     let policy = UntrustedInput::capture().parse()?;
     if policy.cli.clear_timestamp {
-        let _ = timestamp::clear();
+        if let Err(error) = timestamp::clear() {
+            eprintln!("{error}");
+            return Ok(ExitCode::FAILURE);
+        }
         return Ok(ExitCode::SUCCESS);
     }
     if policy.cli.config_check.is_some() {
