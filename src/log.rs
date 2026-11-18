@@ -9,7 +9,7 @@ fn sanitize(input: &OsStr) -> CString {
     if v.len() > 1024 {
         v.truncate(1024);
     }
-    CString::new(v).unwrap_or_else(|_| CString::new("?").unwrap())
+    CString::new(v).unwrap_or_else(|_| c"?".to_owned())
 }
 
 pub fn should_log_success(nolog: bool) -> bool {
@@ -28,7 +28,7 @@ fn ensure_openlog() {
     use std::sync::Once;
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
-        let ident = CString::new("doas").unwrap();
+        let ident = c"doas";
         unsafe { libc::openlog(ident.as_ptr(), libc::LOG_PID | libc::LOG_NDELAY, libc::LOG_AUTHPRIV) };
     });
 }
@@ -42,7 +42,7 @@ pub fn log_permit(user: &OsStr, cmdline: &OsStr, target: &OsStr, cwd: &OsStr, no
     let c = sanitize(cmdline);
     let t = sanitize(target);
     let w = sanitize(cwd);
-    let fmt = CString::new("%s ran command %s as %s from %s").unwrap();
+    let fmt = c"%s ran command %s as %s from %s";
     unsafe {
         libc::syslog(
             libc::LOG_AUTHPRIV | libc::LOG_INFO,
@@ -60,7 +60,7 @@ pub fn log_deny(user: &OsStr, cmdline: &OsStr) {
     ensure_openlog();
     let u = sanitize(user);
     let c = sanitize(cmdline);
-    let fmt = CString::new("command not permitted for %s: %s").unwrap();
+    let fmt = c"command not permitted for %s: %s";
     unsafe {
         libc::syslog(
             libc::LOG_AUTHPRIV | libc::LOG_NOTICE,
@@ -75,7 +75,7 @@ pub fn log_auth_fail(user: &OsStr) {
     debug_assert!(should_log_auth_fail());
     ensure_openlog();
     let u = sanitize(user);
-    let fmt = CString::new("failed auth for %s").unwrap();
+    let fmt = c"failed auth for %s";
     unsafe {
         libc::syslog(libc::LOG_AUTHPRIV | libc::LOG_NOTICE, fmt.as_ptr(), u.as_ptr());
     }
@@ -84,7 +84,7 @@ pub fn log_auth_fail(user: &OsStr) {
 pub fn log_tty_required(user: &OsStr) {
     ensure_openlog();
     let u = sanitize(user);
-    let fmt = CString::new("tty required for %s").unwrap();
+    let fmt = c"tty required for %s";
     unsafe {
         libc::syslog(libc::LOG_AUTHPRIV | libc::LOG_NOTICE, fmt.as_ptr(), u.as_ptr());
     }

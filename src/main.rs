@@ -3,7 +3,7 @@ compile_error!("doas-rs runs on Linux only");
 
 use std::ffi::{CString, OsString};
 use std::os::unix::ffi::OsStrExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use rustix::process::{Gid, Uid};
@@ -699,7 +699,7 @@ fn read_bounded_file(path: &std::path::Path, display: &str) -> Result<Vec<u8>, S
     Ok(data)
 }
 
-fn run_check_mode(policy: &ParsedPolicy) -> Result<ExitCode, Denied> {
+fn run_check_mode(policy: &ParsedPolicy, cfg_path: &Path) -> Result<ExitCode, Denied> {
     let invoking_uid = policy.input.uid.as_raw();
     let invoking_gid = policy.input.gid.as_raw();
     if let Err(e) = drop_to_invoking(invoking_uid, invoking_gid) {
@@ -712,11 +712,10 @@ fn run_check_mode(policy: &ParsedPolicy) -> Result<ExitCode, Denied> {
             gid: *gid,
         });
     }
-    let cfg_path = policy.cli.config_check.clone().unwrap();
     let cfg_str = cfg_path.to_string_lossy().into_owned();
-    let rules: Vec<config::Rule> = if PathBuf::from(&cfg_path).is_dir() {
+    let rules: Vec<config::Rule> = if cfg_path.is_dir() {
         let mut names: Vec<PathBuf> = Vec::new();
-        if let Ok(rd) = std::fs::read_dir(PathBuf::from(&cfg_path)) {
+        if let Ok(rd) = std::fs::read_dir(cfg_path) {
             for ent in rd.flatten() {
                 let p = ent.path();
                 if p.extension().and_then(|e| e.to_str()) == Some("conf") {
@@ -755,7 +754,7 @@ fn run_check_mode(policy: &ParsedPolicy) -> Result<ExitCode, Denied> {
             }
         }
     } else {
-        let data = match read_bounded_file(&PathBuf::from(&cfg_path), &cfg_str) {
+        let data = match read_bounded_file(cfg_path, &cfg_str) {
             Ok(d) => d,
             Err(e) => {
                 eprintln!("{e}");
@@ -821,10 +820,10 @@ fn run() -> Result<ExitCode, Denied> {
         let input = UntrustedInput::capture();
         if input.argv.len() > 1
             && let Ok(cli) = cli::parse(&input.argv)
-            && cli.config_check.is_some()
+            && let Some(cfg_path) = cli.config_check.as_deref()
         {
             let policy = input.parse()?;
-            return run_check_mode(&policy);
+            return run_check_mode(&policy, Path::new(cfg_path));
         }
         eprintln!("doas: not installed setuid");
         let UntrustedInput { argv, uid, gid } = input;
@@ -843,8 +842,8 @@ fn run() -> Result<ExitCode, Denied> {
         }
         return Ok(ExitCode::SUCCESS);
     }
-    if policy.cli.config_check.is_some() {
-        return run_check_mode(&policy);
+    if let Some(cfg_path) = policy.cli.config_check.as_deref() {
+        return run_check_mode(&policy, Path::new(cfg_path));
     }
     policy.authorize()?.authenticate()?.prepare()?.into_exec().run()
 }

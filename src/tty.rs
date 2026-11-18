@@ -27,8 +27,7 @@ pub fn any_stdio_is_tty() -> bool {
 }
 
 pub fn has_controlling_tty() -> bool {
-    let c = CString::new("/dev/tty").unwrap();
-    let fd = unsafe { libc::open(c.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOCTTY) };
+    let fd = unsafe { libc::open(c"/dev/tty".as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOCTTY) };
     if fd < 0 {
         return false;
     }
