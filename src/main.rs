@@ -729,6 +729,8 @@ fn run_check_mode(policy: &ParsedPolicy, cfg_path: &Path) -> Result<ExitCode, De
             return Ok(ExitCode::from(1));
         }
         let mut combined: Vec<u8> = Vec::new();
+        let mut fragments = Vec::with_capacity(names.len());
+        let mut first_line = 1;
         for n in &names {
             let display = n.to_string_lossy().into_owned();
             match read_bounded_file(n, &display) {
@@ -737,6 +739,8 @@ fn run_check_mode(policy: &ParsedPolicy, cfg_path: &Path) -> Result<ExitCode, De
                         eprintln!("doas: {cfg_str}: too large");
                         return Ok(ExitCode::from(1));
                     }
+                    fragments.push((first_line, n));
+                    first_line += d.iter().filter(|&&byte| byte == b'\n').count() + 1;
                     combined.extend_from_slice(&d);
                     combined.push(b'\n');
                 }
@@ -748,8 +752,12 @@ fn run_check_mode(policy: &ParsedPolicy, cfg_path: &Path) -> Result<ExitCode, De
         }
         match config::parse_bytes(&combined, &cfg_str) {
             Ok(r) => r,
-            Err(e) => {
-                eprintln!("{e}");
+            Err(mut error) => {
+                if let Some((line, fragment)) = fragments.iter().rev().find(|(line, _)| *line <= error.line) {
+                    error.file = fragment.to_string_lossy().into_owned();
+                    error.line -= line - 1;
+                }
+                eprintln!("{error}");
                 return Ok(ExitCode::from(1));
             }
         }
