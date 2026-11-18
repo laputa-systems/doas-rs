@@ -122,6 +122,33 @@ Run `make coverage` with Cargo locked and offline in that container.
 The installed-operation guest tests have their own result above.
 Paired test cost and critical mutation scopes remain open.
 
+**CLI parser and help**
+
+Cargo-mutants 27.1.0 selected the same 53 changes in `src/cli.rs` on
+native x86-64 Ubuntu. The [baseline](https://github.com/laputa-systems/doas-rs/actions/runs/44407296345)
+caught 37. The [suite with the new cases](https://github.com/laputa-systems/doas-rs/actions/runs/44408131269)
+caught 43. Both found four unviable changes and timed out on the same
+five option-index edits. The single surviving change replaces an OR in
+the final target-user check. The earlier check is the only way to set
+`target_user` and already rejects both empty and NUL-bearing values.
+The final check sees only values that passed the earlier one.
+
+Reproduce with the command and identity comparison in the
+[trial revision](https://github.com/laputa-systems/doas-rs/tree/45efba88d156e5546c609c06456a1d12d9b38a6e).
+The comparison requires a nonempty selection and an outcome for every
+listed identity. The unit-only run uses the published x86-64 tool. The
+ordinary stable Alpine job passed all 168 tests on that revision.
+
+| Contract | Existing verification | Remaining acceptance |
+| --- | --- | --- |
+| Help, option parsing and argument boundaries | `src/cli.rs` unit tests and help integration in `tests/cli.rs` | Reproduce and disposition the five option-index timeouts in the mutation lane |
+| Configuration parsing, diagnostics and rule selection | Parser unit tests, seeded refusals and exact check-mode integration | Fragment filenames, configuration load and rule evaluation mutation |
+| Approval expiry and clear, authentication and credentials | Timestamp unit tests and the installed-operation guest markers above | Remaining timestamp mutation, live password entry and ARM64 guest |
+| Environment preparation and command execution | Unit tests for preparation and native x86-64 guest execution | Remaining environment and execution decisions and the installed effects on ARM64 |
+
+The CLI trial does not qualify a retained whole-change gate or the
+paired cost of the ordinary suite.
+
 ## Tickets
 
 
