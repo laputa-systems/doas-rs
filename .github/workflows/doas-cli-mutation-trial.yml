@@ -27,12 +27,26 @@ jobs:
           fi
           export TMPDIR="$PWD/.work/tmp"
           cargo test --locked --bin doas cli::tests
-      - name: Measure parser and help admission mutations
+      - name: Measure CLI input and help mutations
         run: |
           export TMPDIR="$PWD/.work/tmp"
-          scope='^(parse|wants_help)$'
-          cargo mutants --no-config --gitignore true --skip-calls-defaults=false             --file src/cli.rs -F "$scope" --list --json > .work/tmp/cli-identities.json
-          cargo mutants --no-config --gitignore true --skip-calls-defaults=false             --file src/cli.rs -F "$scope" --test-package doas --cargo-test-arg=--bin             --cargo-test-arg=doas --jobs 1 --timeout 15 --build-timeout 300             --output .work/tmp/cli-mutation
+          jaq="$PWD/.work/tmp/jaq"
+          curl --proto '=https' -fsSLo "$jaq" https://github.com/01mf02/jaq/releases/download/v3.1.2/jaq-x86_64-unknown-linux-musl
+          printf '%s  %s\n' a469f5e6980fe2c7e73dce0a1db5176eb4a717b933b77fa32fa1da7847c12232 "$jaq" | sha256sum -c -
+          chmod +x "$jaq"
+          cargo mutants --no-config --gitignore true --skip-calls-defaults=false \
+            --file src/cli.rs --list --json > .work/tmp/cli-identities.json
+          "$jaq" -er '.[].name' .work/tmp/cli-identities.json | sort > .work/tmp/cli-listed.txt
+          test -s .work/tmp/cli-listed.txt
+          audit_status=0
+          cargo mutants --no-config --gitignore true --skip-calls-defaults=false \
+            --file src/cli.rs --test-package doas --cargo-test-arg=--bin \
+            --cargo-test-arg=doas --jobs 1 --timeout 15 --build-timeout 300 \
+            --output .work/tmp/cli-mutation || audit_status=$?
+          "$jaq" -er '.outcomes[] | select(.scenario != "Baseline") | .scenario.Mutant.name' \
+            .work/tmp/cli-mutation/mutants.out/outcomes.json | sort > .work/tmp/cli-completed.txt
+          cmp .work/tmp/cli-listed.txt .work/tmp/cli-completed.txt
+          exit "$audit_status"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
