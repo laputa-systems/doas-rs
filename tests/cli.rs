@@ -85,6 +85,36 @@ fn check_parser_errors() {
 }
 
 #[test]
+fn check_reports_the_fragment_and_local_line() {
+    let dir = tmp_dir("fragment-location");
+    write_cfg(&dir, "10-first.conf", "# first fragment\npermit root\n# no final newline");
+    let bad = write_cfg(&dir, "20-bad.conf", "# second fragment\npermit\n");
+    let output = Command::new(our_bin())
+        .arg("-C")
+        .arg(&dir)
+        .env("DOAS_ALLOW_NONSETUID", "1")
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    let error = String::from_utf8(output.stderr).unwrap();
+    assert_eq!(error, format!("doas: expected user or group identity at line 2 in {}\n", bad.display()));
+}
+
+#[test]
+fn check_directory_uses_the_last_rule_in_filename_order() {
+    let dir = tmp_dir("fragment-order");
+    let user = rustix::process::getuid().as_raw();
+    write_cfg(&dir, "20-permit.conf", &format!("permit nopass {user}"));
+    write_cfg(&dir, "10-deny.conf", &format!("deny {user}\n"));
+    let result = run_check(&our_bin(), &dir, &["id"]);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(result, (0, "permit nopass".to_string()));
+}
+
+#[test]
 fn check_nopass_marker() {
     if !is_root() {
         return;

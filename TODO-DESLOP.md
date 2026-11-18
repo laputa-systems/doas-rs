@@ -149,6 +149,19 @@ ordinary stable Alpine job passed all 168 tests on that revision.
 The CLI trial does not qualify a retained whole-change gate or the
 paired cost of the ordinary suite.
 
+**Config-check fragment diagnostics**
+
+The real `doas -C` binary on native ARM64 Alpine 3.24.2 at
+`0cab3038` reported line 5 of the directory for a malformed rule
+on line 2 of its second fragment. The regression fixture now checks
+the full diagnostic, including the filename and fragment-relative
+line. A separate query verifies the last matching rule in filename
+order, including a final fragment without a trailing newline.
+
+The parser still receives the same combined bytes and aggregate
+limits. Run `cargo test --locked --offline --test cli` in the pinned
+builder. All 170 ordinary tests and Clippy passed there.
+
 ## Tickets
 
 
@@ -174,14 +187,6 @@ paired cost of the ordinary suite.
 
 
 
-### DSLP-7 · P3 · Preserve fragment filenames in config-check diagnostics
-
-- **Area:** CLI · config check
-- **Where:** src/main.rs:702; src/main.rs:750; tests/cli.rs
-- **Problem:** The config-check command concatenates directory fragments before parsing. On ARM64 Alpine 3.24.2 a malformed first line in the second fragment was reported as line 3 in the directory. The installed loader parses each fragment with its own pathname.
-- **Recommendation:** Name the fragment and its file-relative line in config-check errors while preserving byte and rule limits and alphabetical rule ordering.
-- **Fix with:** error-model
-- **Effort:** S
 
 
 ### DSLP-8 · P3 · Borrow policy rules during selection

@@ -22,6 +22,7 @@ for another target, `-s` for a shell, `-n` to fail instead of prompting,
 and `-L` to clear persisted approval.
 
 `doas -C config` validates a file or a directory of `.conf` fragments.
+Parse errors name the fragment and the line within it.
 With a command and arguments it prints `permit`, `permit nopass`, or
 `deny` without executing the command. Installed execution reads
 `/etc/doas.conf` followed by `/etc/doas.d/*.conf` in alphabetical order.
