@@ -62,9 +62,8 @@ via `git ls-remote` and the GitHub commit API.
 No custom cryptography. Password checks call the system `crypt`
 through the build container's static `libcrypt.a` (Alpine
 `musl-dev`, musl's bundled crypt provider), linked statically into
-the musl binary. Provenance: the same Alpine edge container pinned
-by `Dockerfile`/`rust-toolchain.toml`; `ldd` on the artifact reports
-a static binary.
+the musl binary. The Dockerfile pins the Alpine 3.24.2 image and
+`musl-dev` 1.2.6-r3. `ldd` reports a static binary for the built artifact.
 
 Verified by roundtrip tests (`auth::tests::crypt_roundtrip_*`): DES
 and `$6$` sha512crypt verify and distinguish wrong passwords through
