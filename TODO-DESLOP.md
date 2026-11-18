@@ -30,7 +30,7 @@ three unused clones in the CLI and authentication fixtures.
 Clippy and all 166 ordinary tests passed in the image with networking
 disabled and Cargo locked and offline. The broader candidate profile
 reported 100 binary visibility, 12 integer conversion, 11 unwrap and two
-wildcard diagnostics. DSLP-3 retains those dispositions. The installed
+wildcard diagnostics. The final Types dispositions are below. The installed
 privilege check remains a separate guest test.
 
 **Installed privilege checks**
@@ -78,17 +78,37 @@ digest was `338c3fb31475e5187e1b7e419d1fd04886d6ab259710de358c8e2cbacc11f995`.
 The ordinary Alpine tests passed. Reproduce with the same pinned guest
 as the installed-operations check and the updated harness.
 
+**Types completion**
+
+Check mode now requires a borrowed path. Both callers pass the path they
+parsed, and the check no longer clones or unwraps the option. Fixed TTY and
+logging inputs use Rust's C-string literals. A disposable compile witness
+removed the path argument from the check-mode call and failed with E0061.
+
+The same production-only Clippy probes on native ARM64 Alpine 3.24.2
+reported these counts before and after:
+
+| Probe | Before | After | Disposition |
+| --- | ---: | ---: | --- |
+| `redundant_clone`, `needless_pass_by_value` | 0 | 0 | Retain the two adopted checks. |
+| `unwrap_used` | 11 | 2 | Remaining cases are a tokenizer byte after a successful peek and a generated timestamp name composed of a literal and digits. |
+| `expect_used`, `match_wildcard_for_single_variants` | 0 | 0 | No witness for an additional check. |
+| `cast_possible_truncation`, `cast_sign_loss` | 3 and 9 | 3 and 9 | Descriptor ceilings, group counts and read lengths have explicit bounds or use checked syscall results. |
+| `wildcard_enum_match_arm` | 2 | 2 | Parser fallbacks handle unmatched tokens. |
+| `unreachable_pub` | 100 | 100 | The binary's modules are internal. |
+| `unsafe_code` | 195 | 195 | Linux libc and kernel interfaces remain in use. |
+
+To reproduce the counts, use the pinned ARM64 Dockerfile and run
+`cargo clippy --offline --locked --bin doas --message-format=json --`
+with `-W` for the listed probes, including `-W unsafe-code -W unreachable-pub`.
+The adopted Clippy profile and all 166 ordinary tests passed without network
+access. [The native KVM trial](https://github.com/laputa-systems/doas-rs/actions/runs/44404388726)
+at `91d3c40` passed all four installed-operation markers and guest exit 0.
+The shipped source, harness and build inputs match that run.
+
 ## Tickets
 
 
-### DSLP-3 · P2 · Types: strict profile and typing findings
-
-- **Area:** deslop · types
-- **Where:** type checker and lint configuration; Rust sources
-- **Problem:** The native Alpine ownership pass adopted two Clippy checks. Visibility, integer conversions, unwrap calls and wildcard matches still need disposition.
-- **Recommendation:** Run the deslop Types step. Accept: clean at the adopted profile, escape hatches not increased, witnesses recorded.
-- **Fix with:** deslop
-- **Effort:** M
 
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 

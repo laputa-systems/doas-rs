@@ -164,8 +164,7 @@ impl Drop for TermGuard {
 }
 
 fn open_tty() -> Result<i32, AuthError> {
-    let c = CString::new("/dev/tty").unwrap();
-    let fd = unsafe { libc::open(c.as_ptr(), libc::O_RDWR | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
+    let fd = unsafe { libc::open(c"/dev/tty".as_ptr(), libc::O_RDWR | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
     if fd < 0 {
         let e = std::io::Error::last_os_error();
         return Err(AuthError::NoTty(format!("tty required ({e})")));
