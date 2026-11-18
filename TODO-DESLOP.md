@@ -106,6 +106,22 @@ access. [The native KVM trial](https://github.com/laputa-systems/doas-rs/actions
 at `91d3c40` passed all four installed-operation markers and guest exit 0.
 The shipped source, harness and build inputs match that run.
 
+**Ordinary branch coverage**
+
+Native ARM64 Alpine 3.24.2 at `3c29743` ran all 166 ordinary tests with
+cargo-llvm-cov 0.9.1 and the pinned Rust toolchain's `llvm-tools`.
+Across the measured crate, 3,113 of 4,323 lines and 500 of 1,006
+branches ran. A second run through `make coverage` produced the same
+counts. Inspect `.work/coverage/report.json`.
+
+Build the pinned development image and add `llvm-tools`, GNU Make
+4.4.1-r4 and the verified ARM64 musl cargo-llvm-cov tool to a separate
+test image. The tool archive digest is
+`49c0085628392a8d727c4464d91ec417c613c5015f5197cd16d5c05aa3fb5ad1`.
+Run `make coverage` with Cargo locked and offline in that container.
+The installed-operation guest tests have their own result above.
+Paired test cost and critical mutation scopes remain open.
+
 ## Tickets
 
 
@@ -114,7 +130,7 @@ The shipped source, harness and build inputs match that run.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and mutation results are unmeasured; no deslop mutation lane exists.
+- **Problem:** Ordinary line and branch coverage is measured. Critical diagnostics, policy, timestamp and installed-effect mutations need dispositions and a retained whole-change lane.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M

@@ -18,6 +18,7 @@ Note: `docker run --rm` hangs on attach in this environment; use `docker create`
 
 - The Linux ARM64 Alpine development image ran the checkout's `make test` Cargo command twice. Both runs passed 166 tests in 5.74 s with a fresh Cargo target and 3.07 s warm. `make lint` runs the Clippy command that passed in 0.91 s there.
 - Pull requests run `make test-ci`, which executes Clippy and the same test command in the development image.
+- `make coverage` runs the ordinary suite with cargo-llvm-cov 0.9.1 and the pinned Rust toolchain's `llvm-tools`. It writes branch counts to `.work/coverage/report.json`.
 - `tests/cli.rs` exercises help, argument checks, exit codes and rule matching through the binary. `tests/adversarial.rs` covers rejection of malformed and inaccessible policy inputs and concurrent config checks.
 - `src/config.rs` and `src/policy.rs` unit tests cover the configuration grammar and authorization decisions. Tests in `src/auth.rs`, `src/timestamp.rs`, `src/exec.rs`, and `src/tty.rs` cover their local contracts.
 - The separate native x86-64 KVM harness checks installed setuid execution, unprivileged config checks and credential transitions through its serial console. [Pinned guest setup](https://github.com/laputa-systems/doas-rs/blob/233d2e93eee2a994b848535c1b764ad93c20aa84/.github/workflows/native-doas-guest-trial.yml). Real password entry and ARM64 guest behavior require separate checks.
