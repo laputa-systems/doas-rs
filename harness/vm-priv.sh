@@ -17,7 +17,7 @@ command -v qemu-system-x86_64 >/dev/null || { echo "vm-priv: qemu missing" >&2; 
 test -c /dev/kvm || { echo "vm-priv: /dev/kvm missing (need KVM)" >&2; exit 1; }
 
 exclude=$(git rev-parse --git-path info/exclude)
-rg -qxF '.work/' "$exclude" || printf '\n.work/\n' >> "$exclude"
+grep -qxF '.work/' "$exclude" || printf '\n.work/\n' >> "$exclude"
 mkdir -p .work/tmp .work/vm-priv
 export TMPDIR="$PWD/.work/tmp"
 work="$PWD/.work/vm-priv"
@@ -69,9 +69,8 @@ trap 'exit 130' INT
 trap 'exit 131' QUIT
 trap 'exit 143' TERM
 qemu-system-x86_64 -M q35 -m 1024 -cpu host -enable-kvm -vga none \
-  -device virtio-gpu-pci -device virtio-keyboard-pci \
   -kernel "$KERNEL" -initrd "$INITRAMFS" \
-  -append "console=tty0 console=ttyS0 root=/dev/vda rootfstype=ext4 rw init=/init" \
+  -append "console=ttyS0 root=/dev/vda rootfstype=ext4 rw init=/init" \
   -drive "file=$work/guest.img,format=raw,if=virtio" \
   -display none -serial "file:$log" -qmp "unix:$qmp,server=on,wait=off" \
   -no-reboot > "$work/qemu.log" 2>&1 &
@@ -81,9 +80,15 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 if kill -0 "$pid" 2>/dev/null; then echo 'guest timed out' >&2; tail -40 "$log"; exit 1; fi
-wait "$pid"; pid=
-rg -q '^VM_EXIT=0' "$log" || { echo 'guest failed'; tail -40 "$log"; exit 1; }
+if wait "$pid"; then
+  pid=
+else
+  pid=
+  tail -40 "$work/qemu.log" >&2
+  exit 1
+fi
+grep -q '^VM_EXIT=0' "$log" || { echo 'guest failed'; tail -40 "$log"; exit 1; }
 for marker in DOAS_PRIV_EXEC_OK DOAS_PRIV_CHECK_OK DOAS_PRIV_CRED_OK; do
-  rg -q "^$marker" "$log" || { echo "missing $marker" >&2; tail -40 "$log"; exit 1; }
+  grep -q "^$marker" "$log" || { echo "missing $marker" >&2; tail -40 "$log"; exit 1; }
 done
 echo "VM_PRIV_OK $log"
