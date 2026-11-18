@@ -127,4 +127,15 @@ if su -p -s /bin/sh nobody -c '/usr/local/bin/doas -u no-such-user-xyz-123 /bin/
   fail "unknown target unexpectedly permitted"
 fi
 out DOAS_PRIV_CRED_OK
+
+"$DOAS" -L >/tmp/doas-clear.out 2>/tmp/doas-clear.err || fail "absent approval clear failed"
+test ! -s /tmp/doas-clear.out && test ! -s /tmp/doas-clear.err || fail "absent approval clear printed output"
+rmdir /run/doas || fail "timestamp directory unexpectedly populated"
+printf 'invalid test timestamp location\n' > /run/doas || fail "could not set up invalid timestamp location"
+clear_code=0
+"$DOAS" -L >/tmp/doas-clear.out 2>/tmp/doas-clear.err || clear_code=$?
+test "$clear_code" -eq 1 || fail "invalid approval clear exited $clear_code"
+test ! -s /tmp/doas-clear.out || fail "invalid approval clear wrote stdout"
+grep -q '^doas: unlink failed:' /tmp/doas-clear.err || fail "invalid approval clear omitted diagnostic"
+out DOAS_PRIV_CLEAR_OK
 exit 0
