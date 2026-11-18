@@ -40,13 +40,11 @@ a usable original input.
 
 ## D4: descriptor-relative opens with `O_NOFOLLOW` throughout
 
-Oracle opens config and timestamp paths by name (`fopen`, `stat`,
-`open` without `O_NOFOLLOW` for some legs). This port opens parent
-directories with `O_DIRECTORY|O_NOFOLLOW`, then files with
-`openat(O_NOFOLLOW|O_CLOEXEC)`, checks with `fstat`, and never
-re-opens by path. `openat2` with `RESOLVE_NO_SYMLINKS` was evaluated;
-single-component opens with `O_NOFOLLOW` plus `fstat` give the same
-guarantee here, so the fallback is the implementation.
+The installed config loader opens each file by basename relative to a
+checked parent directory descriptor. It checks type, ownership and mode
+on the open file before reading from that same descriptor. Each fragment
+opens through a checked directory descriptor. Timestamp validation checks
+the opened directory and timestamp file separately.
 
 ## D5: timestamp group check hardened to root-only
 

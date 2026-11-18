@@ -17,13 +17,15 @@ requirements, not follow-ups.
 Run `doas -h` or `doas --help` for the complete command reference and examples.
 Running `doas` without arguments also prints help.
 
-Run `doas command [args]` as root (`-u user` for another target,
-`-s` for a shell, `-n` to fail instead of prompting, `-L` to forget
-persisted approval). `doas -C config [command [args]]` checks
-policy and prints `permit`, `permit nopass`, or `deny` without executing.
-Rules live
-in `/etc/doas.conf`, then `/etc/doas.d/*.conf`; see
-`docs/doas.conf.example`.
+`doas command [args]` runs the command as root by default. Use `-u user`
+for another target, `-s` for a shell, `-n` to fail instead of prompting,
+and `-L` to clear persisted approval.
+
+`doas -C config` validates a file or a directory of `.conf` fragments.
+With a command and arguments it prints `permit`, `permit nopass`, or
+`deny` without executing the command. Installed execution reads
+`/etc/doas.conf` followed by `/etc/doas.d/*.conf` in alphabetical order.
+See the [example policy](docs/doas.conf.example).
 
 ## Install on Alpine 3.24
 
