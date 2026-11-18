@@ -1,0 +1,43 @@
+name: Doas CLI mutation trial
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    env:
+      CARGO_BUILD_JOBS: 2
+      RUST_TEST_THREADS: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        with:
+          tool: cargo-mutants@27.1.0
+      - name: Check the native CLI tests
+        run: |
+          mkdir -p .work/tmp
+          if ! git check-ignore -q .work/tmp/; then
+            printf '%s\n' '.work/' >> .git/info/exclude
+          fi
+          export TMPDIR="$PWD/.work/tmp"
+          cargo test --locked --bin doas cli::tests
+      - name: Measure parser and help admission mutations
+        run: |
+          export TMPDIR="$PWD/.work/tmp"
+          scope='^(parse|wants_help)$'
+          cargo mutants --no-config --gitignore true --skip-calls-defaults=false             --file src/cli.rs -F "$scope" --list --json > .work/tmp/cli-identities.json
+          cargo mutants --no-config --gitignore true --skip-calls-defaults=false             --file src/cli.rs -F "$scope" --test-package doas --cargo-test-arg=--bin             --cargo-test-arg=doas --jobs 1 --timeout 15 --build-timeout 300             --output .work/tmp/cli-mutation
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: doas-cli-mutation-evidence
+          path: |
+            .work/tmp/cli-identities.json
+            .work/tmp/cli-mutation/mutants.out/
+          include-hidden-files: true
