@@ -33,6 +33,27 @@ reported 100 binary visibility, 12 integer conversion, 11 unwrap and two
 wildcard diagnostics. DSLP-3 retains those dispositions. The installed
 privilege check remains a separate guest test.
 
+**Installed privilege checks**
+
+[Native x86-64 KVM run](https://github.com/laputa-systems/doas-rs/actions/runs/44399053825)
+passed `DOAS_PRIV_EXEC_OK`, `DOAS_PRIV_CHECK_OK`,
+`DOAS_PRIV_CRED_OK` and guest exit 0. The executable was static PIE
+with SHA-256
+`82b674bf6b9ccfc875f41349dbea97e372d038eafe5b9d7d018c9014142bab3b`.
+The source, lock and Alpine 3.24.2 build inputs match `5cf0869`.
+The separate [trial revision](https://github.com/laputa-systems/doas-rs/tree/233d2e93eee2a994b848535c1b764ad93c20aa84)
+records the exact checkout and builder inputs. Run the existing
+`harness/vm-priv.sh` with the Mdevd guest tree, its matching kernel and
+initramfs, and the locked Doas build as shown there. The trial used
+QEMU 11.0.3, the x86-64 runner's KVM device and the serial console.
+It exercised restricted execution, check mode and real user transitions
+inside the guest. Live password entry and the ARM64 guest remain open.
+
+The preceding trial exited before guest boot because QEMU's optional
+display model and ripgrep were absent. The harness now uses the serial
+console and base grep, and prints the QEMU error if the emulator exits
+before the guest markers.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
