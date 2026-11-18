@@ -7,6 +7,16 @@ Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/mai
 
 Ground (DSLP-1) passed at base `122fb3fa42e1b70ccddd0eaab69bc6f0716a52be`. [Verification](AGENTS.md#verification) records the Alpine suite, CLI and policy boundaries, and the separate guest harness. The local lint target shares the hosted Clippy command.
 
+
+The first Diagnose slice at `932754a` traces option parsing and help in
+`src/cli.rs`, rule grammar and location-bearing diagnostics in `src/config.rs`,
+and the `-C` query path in `src/main.rs`. `tests/cli.rs` exercises exact
+arguments, configuration failure, rule ordering, the `permit nopass` outcome
+and the help footer. The README now includes all three query results. The
+help footer also points to the repository's enabled issue tracker. Installed
+privilege behavior retains its separate guest gate. Remaining review stays
+open. No host policy or credentials were used.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog

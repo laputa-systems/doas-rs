@@ -20,7 +20,8 @@ Running `doas` without arguments also prints help.
 Run `doas command [args]` as root (`-u user` for another target,
 `-s` for a shell, `-n` to fail instead of prompting, `-L` to forget
 persisted approval). `doas -C config [command [args]]` checks
-policy and prints `permit` or `deny` without executing. Rules live
+policy and prints `permit`, `permit nopass`, or `deny` without executing.
+Rules live
 in `/etc/doas.conf`, then `/etc/doas.d/*.conf`; see
 `docs/doas.conf.example`.
 
