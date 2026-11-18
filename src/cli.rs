@@ -298,12 +298,33 @@ mod tests {
     }
 
     #[test]
-    fn help_detection_preserves_command_and_option_values() {
-        for args in [&["doas", "-n", "--help"][..], &["doas", "-nh"][..]] {
-            assert!(wants_help(&v(args)));
+    fn help_describes_modes_and_command_boundary() {
+        let output = help();
+        assert!(output.starts_with(USAGE));
+        for line in ["doas -L", "doas [-n] [-u user] -C config", "remaining arguments form the command"] {
+            assert!(output.contains(line), "help omitted {line:?}");
         }
-        for args in [&["doas", "id", "--help"][..], &["doas", "--", "-h"][..], &["doas", "-u", "--help", "id"][..], &["doas", "-C", "-h"][..], &["doas", "-L", "--help"][..]] {
-            assert!(!wants_help(&v(args)));
+    }
+
+    #[test]
+    fn help_detection_preserves_command_and_option_values() {
+        for args in [
+            &["doas", "-n", "--help"][..],
+            &["doas", "-nh"][..],
+            &["doas", "-uroot", "--help"][..],
+        ] {
+            assert!(wants_help(&v(args)), "{args:?}");
+        }
+        for args in [
+            &["doas", "sh", "--help"][..],
+            &["doas", "-", "--help"][..],
+            &["doas", "", "--help"][..],
+            &["doas", "--", "-h"][..],
+            &["doas", "-u", "--help", "id"][..],
+            &["doas", "-C", "-h"][..],
+            &["doas", "-L", "--help"][..],
+        ] {
+            assert!(!wants_help(&v(args)), "{args:?}");
         }
     }
 
@@ -417,6 +438,14 @@ mod tests {
     fn missing_option_argument_rejected() {
         assert!(parse(&v(&["doas", "-u"])).is_err());
         assert!(parse(&v(&["doas", "-C"])).is_err());
+    }
+
+    #[test]
+    fn invalid_user_is_reported_before_a_missing_command() {
+        for user in ["", "a\0b"] {
+            let error = parse(&v(&["doas", "-u", user])).unwrap_err();
+            assert_eq!(error.message, "unknown user");
+        }
     }
 
     #[test]
