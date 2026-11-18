@@ -20,5 +20,5 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build dev image
         run: docker build -t doas-dev .
-      - name: Clippy and tests in Alpine edge
+      - name: Clippy and tests in stable Alpine
         run: make test-ci

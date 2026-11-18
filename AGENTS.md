@@ -1,6 +1,6 @@
 # doas-rs
 
-Rust reimplementation of OpenBSD `doas` for Linux (aarch64 musl, Alpine edge). Setuid-root binary; deny by default, fail closed.
+Rust reimplementation of OpenBSD `doas` for Linux (aarch64 musl, Alpine 3.24). Setuid-root binary; deny by default, fail closed.
 
 ## Commands
 

@@ -1,7 +1,7 @@
 # doas-rs
 
 Minimal security-hardened Rust reimplementation of OpenBSD `doas` for
-Linux (musl; install below targets Alpine edge, aarch64 or x86_64).
+Linux (musl); the installation below targets Alpine 3.24 on aarch64 or x86_64.
 Real setuid-root boundary: correctness and security are release
 requirements, not follow-ups.
 
@@ -25,7 +25,7 @@ Rules live
 in `/etc/doas.conf`, then `/etc/doas.d/*.conf`; see
 `docs/doas.conf.example`.
 
-## Install (Alpine edge)
+## Install on Alpine 3.24
 
 Build the binary with the pinned toolchain (`Dockerfile`,
 `rust-toolchain.toml`) for the host architecture:
@@ -43,7 +43,6 @@ then as root with a spare root shell open and the existing privilege
 tool untouched:
 
 ```sh
-apk add --no-cache ca-certificates
 install -m 4755 doas /usr/local/bin/doas
 if test ! -e /etc/doas.conf; then
   install -m 640 doas.conf.example /etc/doas.conf
