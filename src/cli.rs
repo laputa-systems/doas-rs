@@ -447,7 +447,7 @@ mod tests {
     fn non_utf8_command_preserved() {
         use std::os::unix::ffi::OsStringExt;
         let raw = vec![0xff, 0xfe, b'a'];
-        let arg = OsString::from_vec(raw.clone());
+        let arg = OsString::from_vec(raw);
         let argv = vec![OsString::from("doas"), arg.clone()];
         let c = parse(&argv).unwrap();
         assert_eq!(c.command, vec![arg]);

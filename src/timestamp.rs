@@ -22,7 +22,7 @@ impl std::fmt::Display for TimestampError {
 
 fn read_proc_stat(pid: i32) -> Result<(i32, u64), TimestampError> {
     let path = format!("/proc/{pid}/stat");
-    let cpath = CString::new(path.clone()).map_err(|_| TimestampError::Invalid)?;
+    let cpath = CString::new(path).map_err(|_| TimestampError::Invalid)?;
     let fd = unsafe { libc::openat(libc::AT_FDCWD, cpath.as_ptr(), libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
     if fd < 0 {
         return Err(TimestampError::Invalid);

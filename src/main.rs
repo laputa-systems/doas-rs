@@ -428,7 +428,7 @@ impl Exec {
             });
         }
         let target_gid = target_entry.gid;
-        let target_name = target_entry.name.clone();
+        let target_name = target_entry.name;
         let invoking_uid = request.request.policy.input.uid.as_raw();
         let invoking_name = identity::lookup_user_by_uid(invoking_uid)
             .map(|p| p.name)
@@ -699,7 +699,7 @@ fn read_bounded_file(path: &std::path::Path, display: &str) -> Result<Vec<u8>, S
     Ok(data)
 }
 
-fn run_check_mode(policy: ParsedPolicy) -> Result<ExitCode, Denied> {
+fn run_check_mode(policy: &ParsedPolicy) -> Result<ExitCode, Denied> {
     let invoking_uid = policy.input.uid.as_raw();
     let invoking_gid = policy.input.gid.as_raw();
     if let Err(e) = drop_to_invoking(invoking_uid, invoking_gid) {
@@ -824,7 +824,7 @@ fn run() -> Result<ExitCode, Denied> {
             && cli.config_check.is_some()
         {
             let policy = input.parse()?;
-            return run_check_mode(policy);
+            return run_check_mode(&policy);
         }
         eprintln!("doas: not installed setuid");
         let UntrustedInput { argv, uid, gid } = input;
@@ -841,7 +841,7 @@ fn run() -> Result<ExitCode, Denied> {
         return Ok(ExitCode::SUCCESS);
     }
     if policy.cli.config_check.is_some() {
-        return run_check_mode(policy);
+        return run_check_mode(&policy);
     }
     policy.authorize()?.authenticate()?.prepare()?.into_exec().run()
 }

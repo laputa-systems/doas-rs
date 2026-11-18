@@ -17,6 +17,22 @@ help footer also points to the repository's enabled issue tracker. Installed
 privilege behavior retains its separate guest gate. Remaining review stays
 open. No host policy or credentials were used.
 
+
+**Strict ownership checks**
+
+In the pinned Alpine 3.24.2 ARM64 image, adding
+`-D clippy::redundant_clone -D clippy::needless_pass_by_value` to the
+all-target Clippy command rejects the baseline's unused clones and owned
+check-mode argument. The adopted profile moves the owned paths and strings
+into their existing consumers and borrows the parsed policy. It also drops
+three unused clones in the CLI and authentication fixtures.
+
+Clippy and all 166 ordinary tests passed in the image with networking
+disabled and Cargo locked and offline. The broader candidate profile
+reported 100 binary visibility, 12 integer conversion, 11 unwrap and two
+wildcard diagnostics. DSLP-3 retains those dispositions. The installed
+privilege check remains a separate guest test.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
@@ -32,7 +48,7 @@ open. No host policy or credentials were used.
 
 - **Area:** deslop · types
 - **Where:** type checker and lint configuration; Rust sources
-- **Problem:** The strict-profile candidates in the deslop skill's tools reference have not been measured here.
+- **Problem:** The native Alpine ownership pass adopted two Clippy checks. Visibility, integer conversions, unwrap calls and wildcard matches still need disposition.
 - **Recommendation:** Run the deslop Types step. Accept: clean at the adopted profile, escape hatches not increased, witnesses recorded.
 - **Fix with:** deslop
 - **Effort:** M
