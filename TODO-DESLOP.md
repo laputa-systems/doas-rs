@@ -1,5 +1,5 @@
 Prefix: DSLP
-Next: 6
+Next: 9
 
 Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/main/docs/campaigns/deslop.md), tier A). One agent works this file with the `deslop` skill: take the lowest-numbered open ticket whose area does not start with `Needs owner ·`. After DSLP-5, work the open P1 and P2 findings, then fill in `## Report` below.
 
@@ -54,16 +54,20 @@ display model and ripgrep were absent. The harness now uses the serial
 console and base grep, and prints the QEMU error if the emulator exits
 before the guest markers.
 
+**Diagnose completion**
+
+The review at `bd3bf39` traced CLI admission, policy loading and rule order,
+identity, credentials, password and timestamp handling, execution and
+environment preparation, and the Linux guest boundary. Baseline Alpine CI
+and the native guest receipt above passed. A disposable ARM64 Alpine 3.24.2
+rebuild reproduced the clear-status error and directory diagnostic against
+the binary. The policy ownership finding is a source observation. The
+README describes the check-only and installed execution paths separately.
+DSLP-6 through DSLP-8 record the findings. Live password entry, ARM64
+installed guest verification and release security review remain separate.
+
 ## Tickets
 
-### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
-
-- **Area:** deslop · diagnose
-- **Where:** whole repository
-- **Problem:** No review has ranked this repository's risks for the deslop pass.
-- **Recommendation:** Run the deslop Diagnose step. Accept: the diff touches only docs, comments, and this file, and every finding names its Fix with.
-- **Fix with:** deslop
-- **Effort:** S
 
 ### DSLP-3 · P2 · Types: strict profile and typing findings
 
@@ -91,4 +95,34 @@ before the guest markers.
 - **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
 - **Fix with:** deslop
 - **Effort:** M
+
+
+### DSLP-6 · P2 · Report failures clearing cached authorization
+
+- **Area:** CLI · timestamp
+- **Where:** src/main.rs:840; src/timestamp.rs:266; docs/differences.md#d5-timestamp-group-check-hardened-to-root-only
+- **Problem:** The CLI discards the error returned by timestamp clearing. On native ARM64 Alpine 3.24.2 at bd3bf39, an invalid timestamp store made doas -L exit 0 with empty stdout and stderr. The administrator cannot distinguish failed cleanup from a successful clear.
+- **Recommendation:** Keep absent timestamp files idempotent. Send other clear failures through the existing CLI error path and test both results inside a disposable guest or container.
+- **Fix with:** error-model
+- **Effort:** S
+
+
+### DSLP-7 · P3 · Preserve fragment filenames in config-check diagnostics
+
+- **Area:** CLI · config check
+- **Where:** src/main.rs:702; src/main.rs:750; tests/cli.rs
+- **Problem:** The config-check command concatenates directory fragments before parsing. On ARM64 Alpine 3.24.2 a malformed first line in the second fragment was reported as line 3 in the directory. The installed loader parses each fragment with its own pathname.
+- **Recommendation:** Name the fragment and its file-relative line in config-check errors while preserving byte and rule limits and alphabetical rule ordering.
+- **Fix with:** error-model
+- **Effort:** S
+
+
+### DSLP-8 · P3 · Borrow policy rules during selection
+
+- **Area:** policy · ownership
+- **Where:** src/main.rs:206; src/policy.rs:111
+- **Problem:** Authorization clones the whole rules vector before selection, then copies the selected permit into the next stage. The lookup already takes a borrowed slice and downstream stages do not read the rules vector.
+- **Recommendation:** Borrow the rules through matching and keep ownership of the selected permit. Run the rule ordering, whole pipeline and guest execution checks.
+- **Fix with:** typing-audit
+- **Effort:** S
 
