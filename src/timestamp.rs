@@ -77,7 +77,8 @@ fn timestamp_name() -> Result<String, TimestampError> {
     Ok(format!("{ppid}-{sid}-{tty}-{start}-{uid}"))
 }
 
-pub fn timestamp_path() -> Result<PathBuf, TimestampError> {
+#[cfg(test)]
+fn timestamp_path() -> Result<PathBuf, TimestampError> {
     timestamp_path_in(Path::new(TIMESTAMP_DIR))
 }
 

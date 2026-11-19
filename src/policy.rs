@@ -123,8 +123,8 @@ pub fn last_match<'a>(
     last
 }
 
-#[allow(dead_code)]
-pub fn is_permitted(
+#[cfg(test)]
+fn is_permitted(
     rules: &[Rule],
     req: &Request<'_>,
     resolve_user: &dyn Fn(&OsStr) -> Option<u32>,

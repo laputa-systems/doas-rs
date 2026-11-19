@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::ffi::CString;
 
 pub fn tiocsti_disabled() -> bool {
@@ -52,7 +53,8 @@ pub fn should_refuse_current_session() -> bool {
     )
 }
 
-pub fn open_pty() -> Result<(i32, i32, String), String> {
+#[cfg(test)]
+fn open_pty() -> Result<(i32, i32, String), String> {
     let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY | libc::O_CLOEXEC) };
     if master < 0 {
         return Err(format!("posix_openpt failed: {}", std::io::Error::last_os_error()));

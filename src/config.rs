@@ -768,7 +768,7 @@ pub fn parse_bytes(data: &[u8], file: &str) -> Result<Vec<Rule>, ConfigError> { 
     Ok(rules)
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn parse_str(s: &str, file: &str) -> Result<Vec<Rule>, ConfigError> {
     parse_bytes(s.as_bytes(), file)
 }

@@ -17,9 +17,7 @@ mod identity;
 mod load;
 mod log;
 mod policy;
-#[allow(dead_code)]
 mod timestamp;
-#[allow(dead_code)]
 mod tty;
 
 #[derive(Debug)]
