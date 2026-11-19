@@ -1,7 +1,7 @@
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 
-use crate::config::{DenyRule, Rule};
+use crate::config::Rule;
 
 pub struct Request<'a> {
     pub uid: u32,
@@ -131,19 +131,6 @@ pub fn is_permitted(
     resolve_group: &dyn Fn(&OsStr) -> Option<u32>,
 ) -> bool {
     matches!(last_match(rules, req, resolve_user, resolve_group), Some(Rule::Permit(_)))
-}
-
-#[allow(dead_code)]
-pub fn matched_deny<'a>(
-    rules: &'a [Rule],
-    req: &Request<'_>,
-    resolve_user: &dyn Fn(&OsStr) -> Option<u32>,
-    resolve_group: &dyn Fn(&OsStr) -> Option<u32>,
-) -> Option<&'a DenyRule> {
-    match last_match(rules, req, resolve_user, resolve_group) {
-        Some(Rule::Deny(d)) => Some(d),
-        _ => None,
-    }
 }
 
 #[cfg(test)]
