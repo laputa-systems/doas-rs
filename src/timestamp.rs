@@ -135,10 +135,6 @@ fn ensure_dir_in(dir: &Path) -> Result<i32, TimestampError> {
     Ok(fd2)
 }
 
-fn ensure_dir() -> Result<i32, TimestampError> {
-    ensure_dir_in(Path::new(TIMESTAMP_DIR))
-}
-
 fn clock_now() -> Result<(libc::timespec, libc::timespec), TimestampError> {
     let mut boot: libc::timespec = unsafe { std::mem::zeroed() };
     let mut wall: libc::timespec = unsafe { std::mem::zeroed() };
