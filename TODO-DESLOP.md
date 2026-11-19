@@ -1,9 +1,33 @@
 Prefix: DSLP
-Next: 9
+Next: 13
 
 Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/main/docs/campaigns/deslop.md), tier A). One agent works this file with the `deslop` skill: take the lowest-numbered open ticket whose area does not start with `Needs owner ·`. After DSLP-5, work the open P1 and P2 findings, then fill in `## Report` below.
 
 ## Report
+
+**Bench audit:** No benchmark harness, representative performance workload or
+performance gate exists. Priorities are assumed: the main gaps are P3/P4,
+with external command execution and, when needed, PAM-free password
+authentication contributing to elapsed time. No claim is made that either
+dominates every invocation. Ranked by risk of a missed user-visible regression:
+
+| Outcome | Current coverage | Gap and cheapest useful measurement |
+| --- | --- | --- |
+| Large policy parse and check | Functional rule and fragment checks; 1 MiB per-file and 4,096-rule limits, oversize rejection | P3 DSLP-9: repeated `-C` on a representative valid policy with an asserted decision; sample CPU separately. |
+| Added time before command execution, including persisted approval I/O | Guest verifies successful nopass execution; timestamp tests check validity and expiry, not cost | P4 DSLP-10: compare successful installed guest runs ending in a marker, including valid persist; trace syscall counts separately. |
+| Peak memory | Input bounds and correctness tests, no footprint measurement | P4 DSLP-11: peak RSS for a successful large-policy check; profile allocations separately if needed. |
+| Release binary size | README records a historical approximate size, not a gate | P4 DSLP-12: compare byte counts from identically configured pinned release builds; inspect sections if size grows. |
+| Network bandwidth and sustained throughput | None | Not needed: this is a local, one-command tool with no documented network or sustained-service workload. |
+
+The guest's oversize `timeout 10` check accepts any nonzero exit, including
+timeout, so it is not a proven latency bound. No benchmark result supplies
+process-tree accounting, interleaved baselines, host gating, attribution, or
+a regression threshold. New measurements need pinned inputs,
+completed-work and correctness checks, and separate instrumented runs; the
+README describes quiet-host timing. With no harness there is no preflight,
+cleanup or result provenance to audit, and no entrypoint to wrap. Live password
+entry and ARM64 installed execution remain unmeasured. No new measurement was
+taken in this audit.
 
 Ground (DSLP-1) passed at base `122fb3fa42e1b70ccddd0eaab69bc6f0716a52be`. [Verification](AGENTS.md#verification) records the Alpine suite, CLI and policy boundaries, and the separate guest harness. The local lint target shares the hosted Clippy command.
 
@@ -238,5 +262,45 @@ dependencies; no dependency change was needed.
 - **Problem:** Authorization clones the whole rules vector before selection, then copies the selected permit into the next stage. The lookup already takes a borrowed slice and downstream stages do not read the rules vector.
 - **Recommendation:** Borrow the rules through matching and keep ownership of the selected permit. Run the rule ordering, whole pipeline and guest execution checks.
 - **Fix with:** typing-audit
+- **Effort:** S
+
+
+### DSLP-9 · P3 · Measure large policy check cost
+
+- **Area:** performance · policy
+- **Where:** src/config.rs:4; src/policy.rs:111; tests/cli.rs:39
+- **Problem:** Valid large policies are parsed and searched without a time or CPU comparison; input limits and functional tests do not reveal a slowdown.
+- **Recommendation:** Compare repeated -C checks of a representative multi-fragment large policy against a reference on a quiet Linux host, asserting the expected last-match result; use CPU sampling separately to attribute changes.
+- **Fix with:** none
+- **Effort:** S
+
+
+### DSLP-10 · P4 · Measure installed command startup and cached approval
+
+- **Area:** performance · execution
+- **Where:** src/main.rs:227; src/main.rs:854; harness/vm-guest-priv.sh:65
+- **Problem:** Installed nopass and persisted-approval execution have functional coverage but no latency or syscall baseline, so extra setup or timestamp I/O may go unnoticed before the command starts.
+- **Recommendation:** In a disposable Linux guest compare repeated successful setuid nopass and valid-persist runs of a trivial marker command against an interleaved reference, checking the marker; use a separate syscall-count trace to attribute timestamp I/O, excluding human password entry.
+- **Fix with:** none
+- **Effort:** M
+
+
+### DSLP-11 · P4 · Observe peak memory for policy checks
+
+- **Area:** performance · memory
+- **Where:** src/config.rs:4; src/main.rs:204; tests/adversarial.rs:82
+- **Problem:** Policy bounds and correctness checks do not measure peak memory; allocations and the rules clone can increase memory consumed by a large valid policy.
+- **Recommendation:** Measure peak RSS of successful -C runs with representative large valid policies using a process resource counter, checking the decision; use an allocation profiler separately if growth needs attribution.
+- **Fix with:** none
+- **Effort:** S
+
+
+### DSLP-12 · P4 · Track release binary size against a reference
+
+- **Area:** performance · artifact
+- **Where:** README.md:75; Cargo.toml:7; Dockerfile:1
+- **Problem:** The README notes a historical approximate size and says it is logged rather than gated; it does not establish a reproducible current size comparison, so artifact growth can go unnoticed.
+- **Recommendation:** Compare byte counts of pinned target release binaries built with identical inputs using stat or wc -c; inspect section sizes with size when growth needs attribution.
+- **Fix with:** none
 - **Effort:** S
 
