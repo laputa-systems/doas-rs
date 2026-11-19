@@ -134,12 +134,32 @@ protect CLI argument boundaries and help behavior, not six independent
 contracts. The remaining survivor changes the final target-user OR to AND:
 the earlier validation already rejects empty and NUL-bearing values, so
 it is equivalent for reachable values. The five option-index timeouts were
-repeated at 15 seconds but remain unconfirmed hangs, not catches; no new
-mutation trial ran in this closeout (0 runner-minutes). Longer reruns and
-mutation of config loading, rule matching, credentials and approval state
-remain incomplete; broader module sweeps and a whole-change lane are
-advisory and unrun. No other survivor groups were measured. Live password
-entry and an ARM64 installed guest remain separate environment items.
+repeated at 15 seconds but remain unconfirmed hangs, not catches.
+
+The required policy trial used cargo-mutants 27.1.0 on Linux ARM64 Alpine,
+base `29ed55b`, with `RUST_TEST_THREADS=1` and `TMPDIR=$PWD/.work/tmp`:
+`cargo mutants --no-config --gitignore true --file src/policy.rs --baseline
+run --jobs 1 --timeout 15 --build-timeout 120 --output
+/work/.work/policy-run`. The container copy had `.work/` in Git excludes.
+Of 29 mutations, 22 were
+caught by assertions, 3 were unviable and 4 survived; none timed out. The
+caught changes cover identity, target, command and argument restrictions,
+rule predicates, last-match selection and permit/deny outcomes. The four
+survivors replace the results or remove the matching arms of
+`matched_permit` and `matched_deny`. Both helpers have no callers; the
+installed and check-mode paths call `last_match` directly. These survivors
+cannot alter a current authorization decision and are leads for DSLP-5,
+not equivalent mutations or accepted risks. The three unviable mutations
+construct a default rule value that does not compile. The completed trial
+used 104 seconds of wall time with one worker; an initial baseline attempt
+used 8 seconds and stopped on a container PTY failure before any mutant,
+for 112 seconds (1.87 aggregate runner-minutes) total. The retry serialized
+the ordinary tests and passed its baseline.
+
+Longer CLI timeout reruns and mutation of config loading, credentials and
+approval state remain incomplete; broader module sweeps and a whole-change
+lane are advisory and unrun. Live password entry and an ARM64 installed
+guest remain separate environment items.
 
 The config-check fragment regression at `0cab3038` checks the exact
 fragment-relative filename and line, and filename-ordered last matching
