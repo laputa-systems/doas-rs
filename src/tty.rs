@@ -22,10 +22,6 @@ pub fn stderr_is_tty() -> bool {
     unsafe { libc::isatty(2) == 1 }
 }
 
-pub fn any_stdio_is_tty() -> bool {
-    stdin_is_tty() || stdout_is_tty() || stderr_is_tty()
-}
-
 pub fn has_controlling_tty() -> bool {
     let fd = unsafe { libc::open(c"/dev/tty".as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOCTTY) };
     if fd < 0 {
