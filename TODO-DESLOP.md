@@ -1,9 +1,37 @@
 Prefix: DSLP
-Next: 13
+Next: 14
 
 Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/main/docs/campaigns/deslop.md), tier A). One agent works this file with the `deslop` skill: take the lowest-numbered open ticket whose area does not start with `Needs owner ·`. After DSLP-5, work the open P1 and P2 findings, then fill in `## Report` below.
 
 ## Report
+
+DSLP-1 base: `122fb3fa42e1b70ccddd0eaab69bc6f0716a52be`, the default-branch commit before Ground (#5). The cumulative completion review covers that base through `0ed3b612`; it found no demonstrated new defect. It filed DSLP-13 (P3): timestamp identity lookup errors can still be suppressed on clear; a reachable trigger remains unproven. Policy selection, environment preparation, terminal refusal and timestamp changes received priority in the review.
+
+**Scorecard**
+
+| Measure | Before | After / disposition |
+| --- | --- | --- |
+| Rust lines (`src/`, including inline tests; `tests/`) | 5,597; 264 | 5,560; 294 |
+| Warm `make test` | 3.07 s at Ground | Not measured comparably; 168 tests passed in the Report container. |
+| Coverage | Not recorded | At `3c29743`: 3,113/4,323 lines and 500/1,006 branches; not a gate. |
+| Escape-hatch matching lines, `src/` and `tests/` | 431 | 405; counts include tests and unsafe FFI, not a safety verdict. |
+| Dead code | Not measured | Dead-code PR deleted 87 source lines and added 13, including removed isolated tests and test-only gating; zero dependencies removed. |
+| Findings | Diagnose filed P2: 1, P3: 2 | Fixed P2: 1 and P3: 1; P3: 1 remained. Bench filed P3: 1 and P4: 3; Report filed P3: 1. No P1 findings. DSLP-8–13 remain open. |
+| Performance | No workload or gate | No comparable performance verdict; Bench found no benchmarks. Live password and ARM64 installed execution remain unmeasured. |
+| Escaped regressions | Not recorded | None demonstrated by completion review; untested cases below are not proof of absence. |
+
+Mutation outcomes are evidence about protected behavior, not a score of defects fixed:
+
+| Scope and type | Before caught / missed / timeout / unviable | After caught / missed / timeout / unviable | Cost and behavior |
+| --- | --- | --- | --- |
+| CLI, advisory bounded trial | 37 / 7 / 5 / 4 | 43 / 1 / 5 / 4 | Runner-minutes not recorded. Added cases protect argument boundaries and help; one survivor is unreachable-equivalent, five timeouts unconfirmed. |
+| `src/policy.rs`, required bounded trial | Not recorded | 22 / 4 / 0 / 3 of 29 | 1.87 runner-minutes including retry, 104 s successful wall time. Assertions protect identity, target, command, arguments, rule ordering and permit/deny; all four survivors were in two subsequently removed dead helpers (22 of 26 viable caught). No post-removal rerun. |
+
+**Steps and cost.** Ground (#5): mapped boundaries, 5.74 s cold and 3.07 s warm tests, 0.91 s lint. Diagnose (#11): found clear failure, fragment diagnostics and rules ownership (DSLP-6–8); two defects were reproduced and later fixed in #13 and #18. Types (#8, #14): adopted two ownership lints and required the check path, with a compile witness. Tests (#15, #17, #19): added coverage and CLI boundary cases; mutation trials above; critical loading, credentials and approval regions remain unmutated. Dead code (#20): removed unused helpers; rustc dead-code and cargo-machete passed, visibility warnings dispositioned. Bench (#21): no harness; ranked the four measurement gaps in the table below. Report: reviewed the cumulative diff and filed DSLP-13. Except the recorded timings and mutation cost, per-step wall time and CI runner-minutes were not recorded.
+
+**Method feedback.** Require failure-path checks at every layer when claiming an error is propagated: the clear fix covers unlink errors but path derivation still discards errors. The first policy mutation baseline lost its PTY; serialized retry worked. Dead-code tools found no unused dependency. Full-change mutation and a qualified CI mutation lane were not run.
+
+**Shared-file gaps.** The shared deslop recipe calls for a qualified diff mutation gate, but this repository has no `make mutants-diff` or CI lane; its bounded policy result does not qualify one. Shared campaign guidance should make recorded runner-minutes and before/after coverage explicit when evidence is unavailable, rather than implying an unmeasured result.
 
 **Bench audit:** No benchmark harness, representative performance workload or
 performance gate exists. Priorities are assumed: the main gaps are P3/P4,
@@ -272,6 +300,16 @@ dependencies; no dependency change was needed.
 - **Problem:** Valid large policies are parsed and searched without a time or CPU comparison; input limits and functional tests do not reveal a slowdown.
 - **Recommendation:** Compare repeated -C checks of a representative multi-fragment large policy against a reference on a quiet Linux host, asserting the expected last-match result; use CPU sampling separately to attribute changes.
 - **Fix with:** none
+- **Effort:** S
+
+
+### DSLP-13 · P3 · Report timestamp identity failures during clear
+
+- **Area:** CLI · timestamp
+- **Where:** src/timestamp.rs:69; src/timestamp.rs:264; src/main.rs:845
+- **Problem:** Clear treats failure to derive the timestamp path as success, so a failed session or proc identity lookup can leave an approval in place while doas -L reports success. The operational trigger is unproven; the existing guest check covers an unlink failure only.
+- **Recommendation:** Reproduce a timestamp identity lookup failure in a disposable Linux environment, distinguish it from an absent approval, and propagate the failure with a regression test.
+- **Fix with:** error-model
 - **Effort:** S
 
 
