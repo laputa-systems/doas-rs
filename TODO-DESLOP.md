@@ -106,74 +106,52 @@ access. [The native KVM trial](https://github.com/laputa-systems/doas-rs/actions
 at `91d3c40` passed all four installed-operation markers and guest exit 0.
 The shipped source, harness and build inputs match that run.
 
-**Ordinary branch coverage**
+**Tests completion (DSLP-4)**
 
-Native ARM64 Alpine 3.24.2 at `3c29743` ran all 166 ordinary tests with
-cargo-llvm-cov 0.9.1 and the pinned Rust toolchain's `llvm-tools`.
-Across the measured crate, 3,113 of 4,323 lines and 500 of 1,006
-branches ran. A second run through `make coverage` produced the same
-counts. Inspect `.work/coverage/report.json`.
+The required contracts are CLI admission and exit status (`src/cli.rs`,
+`src/main.rs`); config-check admission, limits and diagnostics
+(`src/main.rs`, `src/config.rs`, `src/load.rs`, `tests/cli.rs`,
+`tests/adversarial.rs`);
+and authorization, identity transitions and approval state (`src/policy.rs`,
+`src/identity.rs`, `src/exec.rs`, `src/auth.rs`, `src/timestamp.rs`). The
+ordinary suite exercises malformed inputs, fragment-local diagnostics,
+last-match rules, identity and command restrictions, deny by default,
+credential transition checks, and absent, corrupt, expired and cleared
+approvals. The KVM result above covers installed transitions and clear.
 
-Build the pinned development image and add `llvm-tools`, GNU Make
-4.4.1-r4 and the verified ARM64 musl cargo-llvm-cov tool to a separate
-test image. The tool archive digest is
-`49c0085628392a8d727c4464d91ec417c613c5015f5197cd16d5c05aa3fb5ad1`.
-Run `make coverage` with Cargo locked and offline in that container.
-The installed-operation guest tests have their own result above.
-Paired test cost and critical mutation scopes remain open.
+Native ARM64 Alpine at `3c29743` measured 3,113/4,323 lines and
+500/1,006 branches with cargo-llvm-cov 0.9.1; coverage is a report, not
+a gate. The CLI trial at `45efba88` used cargo-mutants 27.1.0 on native
+x86-64 Ubuntu with `--file src/cli.rs --test-package doas
+--cargo-test-arg=--bin --cargo-test-arg=doas --jobs 1 --timeout 15
+--build-timeout 300` and `--no-config --gitignore true
+--skip-calls-defaults=false`. Of 53 selected changes, the
+[baseline](https://github.com/laputa-systems/doas-rs/actions/runs/44407296345)
+caught 37, missed 7, had 4 unviable and 5 timeouts; the
+[candidate](https://github.com/laputa-systems/doas-rs/actions/runs/44408131269)
+caught 43, missed 1, had 4 unviable and 5 timeouts. The added cases
+protect CLI argument boundaries and help behavior, not six independent
+contracts. The remaining survivor changes the final target-user OR to AND:
+the earlier validation already rejects empty and NUL-bearing values, so
+it is equivalent for reachable values. The five option-index timeouts were
+repeated at 15 seconds but remain unconfirmed hangs, not catches; no new
+mutation trial ran in this closeout (0 runner-minutes). Longer reruns and
+mutation of config loading, rule matching, credentials and approval state
+remain incomplete; broader module sweeps and a whole-change lane are
+advisory and unrun. No other survivor groups were measured. Live password
+entry and an ARM64 installed guest remain separate environment items.
 
-**CLI parser and help**
-
-Cargo-mutants 27.1.0 selected the same 53 changes in `src/cli.rs` on
-native x86-64 Ubuntu. The [baseline](https://github.com/laputa-systems/doas-rs/actions/runs/44407296345)
-caught 37. The [suite with the new cases](https://github.com/laputa-systems/doas-rs/actions/runs/44408131269)
-caught 43. Both found four unviable changes and timed out on the same
-five option-index edits. The single surviving change replaces an OR in
-the final target-user check. The earlier check is the only way to set
-`target_user` and already rejects both empty and NUL-bearing values.
-The final check sees only values that passed the earlier one.
-
-Reproduce with the command and identity comparison in the
-[trial revision](https://github.com/laputa-systems/doas-rs/tree/45efba88d156e5546c609c06456a1d12d9b38a6e).
-The comparison requires a nonempty selection and an outcome for every
-listed identity. The unit-only run uses the published x86-64 tool. The
-ordinary stable Alpine job passed all 168 tests on that revision.
-
-| Contract | Existing verification | Remaining acceptance |
-| --- | --- | --- |
-| Help, option parsing and argument boundaries | `src/cli.rs` unit tests and help integration in `tests/cli.rs` | Reproduce and disposition the five option-index timeouts in the mutation lane |
-| Configuration parsing, diagnostics and rule selection | Parser unit tests, seeded refusals and exact check-mode integration | Fragment filenames, configuration load and rule evaluation mutation |
-| Approval expiry and clear, authentication and credentials | Timestamp unit tests and the installed-operation guest markers above | Remaining timestamp mutation, live password entry and ARM64 guest |
-| Environment preparation and command execution | Unit tests for preparation and native x86-64 guest execution | Remaining environment and execution decisions and the installed effects on ARM64 |
-
-The CLI trial does not qualify a retained whole-change gate or the
-paired cost of the ordinary suite.
-
-**Config-check fragment diagnostics**
-
-The real `doas -C` binary on native ARM64 Alpine 3.24.2 at
-`0cab3038` reported line 5 of the directory for a malformed rule
-on line 2 of its second fragment. The regression fixture now checks
-the full diagnostic, including the filename and fragment-relative
-line. A separate query verifies the last matching rule in filename
-order, including a final fragment without a trailing newline.
-
-The parser still receives the same combined bytes and aggregate
-limits. Run `cargo test --locked --offline --test cli` in the pinned
-builder. All 170 ordinary tests and Clippy passed there.
+The config-check fragment regression at `0cab3038` checks the exact
+fragment-relative filename and line, and filename-ordered last matching
+rules including a fragment without a final newline. All 170 ordinary tests
+and Clippy passed in its pinned Alpine builder. No new tests were added in
+this closeout; existing evidence does not establish mutation completeness
+for the unrun critical regions.
 
 ## Tickets
 
 
 
-### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
-
-- **Area:** deslop · tests
-- **Where:** test suites and CI
-- **Problem:** Ordinary line and branch coverage is measured. Critical diagnostics, policy, timestamp and installed-effect mutations need dispositions and a retained whole-change lane.
-- **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
-- **Fix with:** deslop
-- **Effort:** M
 
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
