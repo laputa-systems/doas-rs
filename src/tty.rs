@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::ffi::CString;
 
 pub fn tiocsti_disabled() -> bool {
@@ -22,10 +23,6 @@ pub fn stderr_is_tty() -> bool {
     unsafe { libc::isatty(2) == 1 }
 }
 
-pub fn any_stdio_is_tty() -> bool {
-    stdin_is_tty() || stdout_is_tty() || stderr_is_tty()
-}
-
 pub fn has_controlling_tty() -> bool {
     let fd = unsafe { libc::open(c"/dev/tty".as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOCTTY) };
     if fd < 0 {
@@ -33,10 +30,6 @@ pub fn has_controlling_tty() -> bool {
     }
     unsafe { libc::close(fd) };
     true
-}
-
-pub fn refuse_interactive(stdin_tty: bool, tiocsti_enabled: bool) -> bool {
-    stdin_tty && tiocsti_enabled
 }
 
 pub fn refuse_session(
@@ -60,7 +53,8 @@ pub fn should_refuse_current_session() -> bool {
     )
 }
 
-pub fn open_pty() -> Result<(i32, i32, String), String> {
+#[cfg(test)]
+fn open_pty() -> Result<(i32, i32, String), String> {
     let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY | libc::O_CLOEXEC) };
     if master < 0 {
         return Err(format!("posix_openpt failed: {}", std::io::Error::last_os_error()));
@@ -84,17 +78,6 @@ pub fn open_pty() -> Result<(i32, i32, String), String> {
     Ok((master, slave, name))
 }
 
-pub fn copy_winsize(src: i32, dst: i32) -> Result<(), String> {
-    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
-    if unsafe { libc::ioctl(src, libc::TIOCGWINSZ, &mut ws) } != 0 {
-        return Err(format!("TIOCGWINSZ failed: {}", std::io::Error::last_os_error()));
-    }
-    if unsafe { libc::ioctl(dst, libc::TIOCSWINSZ, &ws) } != 0 {
-        return Err(format!("TIOCSWINSZ failed: {}", std::io::Error::last_os_error()));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,14 +87,6 @@ mod tests {
         let _ = tiocsti_disabled();
         let _ = should_isolate();
         let _ = stdin_is_tty();
-    }
-
-    #[test]
-    fn refuse_gate_matrix() {
-        assert!(refuse_interactive(true, true));
-        assert!(!refuse_interactive(true, false));
-        assert!(!refuse_interactive(false, true));
-        assert!(!refuse_interactive(false, false));
     }
 
     #[test]
@@ -128,7 +103,6 @@ mod tests {
 
     #[test]
     fn stdin_only_is_insufficient() {
-        assert!(!refuse_interactive(false, true));
         assert!(refuse_session(false, true, false, false, true));
         assert!(refuse_session(false, false, false, true, true));
     }
@@ -140,23 +114,6 @@ mod tests {
         assert!(name.starts_with("/dev/pts/"));
         unsafe { libc::close(master) };
         unsafe { libc::close(slave) };
-    }
-
-    #[test]
-    fn winsize_roundtrip() {
-        let (m1, s1, _) = open_pty().unwrap();
-        let (m2, s2, _) = open_pty().unwrap();
-        let ws = libc::winsize { ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0 };
-        assert_eq!(unsafe { libc::ioctl(m1, libc::TIOCSWINSZ, &ws) }, 0);
-        copy_winsize(m1, m2).expect("winsize copy must work between ptys");
-        let mut out: libc::winsize = unsafe { std::mem::zeroed() };
-        assert_eq!(unsafe { libc::ioctl(m2, libc::TIOCGWINSZ, &mut out) }, 0);
-        assert_eq!(out.ws_row, 24);
-        assert_eq!(out.ws_col, 80);
-        unsafe { libc::close(m1) };
-        unsafe { libc::close(s1) };
-        unsafe { libc::close(m2) };
-        unsafe { libc::close(s2) };
     }
 
     #[test]

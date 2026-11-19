@@ -77,7 +77,8 @@ fn timestamp_name() -> Result<String, TimestampError> {
     Ok(format!("{ppid}-{sid}-{tty}-{start}-{uid}"))
 }
 
-pub fn timestamp_path() -> Result<PathBuf, TimestampError> {
+#[cfg(test)]
+fn timestamp_path() -> Result<PathBuf, TimestampError> {
     timestamp_path_in(Path::new(TIMESTAMP_DIR))
 }
 
@@ -133,10 +134,6 @@ fn ensure_dir_in(dir: &Path) -> Result<i32, TimestampError> {
         return Err(TimestampError::Invalid);
     }
     Ok(fd2)
-}
-
-fn ensure_dir() -> Result<i32, TimestampError> {
-    ensure_dir_in(Path::new(TIMESTAMP_DIR))
 }
 
 fn clock_now() -> Result<(libc::timespec, libc::timespec), TimestampError> {

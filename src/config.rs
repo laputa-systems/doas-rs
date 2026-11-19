@@ -283,7 +283,7 @@ impl<'a> Lexer<'a> {
                 b'"' => {
                     let ln = self.line;
                     self.next_byte();
-                    let (s, nonkw) = self.lex_quoted(ln)?;
+                    let (s, nonkw) = self.lex_quoted()?;
                     return Ok((self.classify(s, nonkw), ln));
                 }
                 b'\\' => {
@@ -295,7 +295,7 @@ impl<'a> Lexer<'a> {
                             continue;
                         }
                         Some(_) => {
-                            let (s, nonkw) = self.lex_word_continued(ln)?;
+                            let (s, nonkw) = self.lex_word_continued()?;
                             return Ok((self.classify(s, nonkw), ln));
                         }
                         None => {
@@ -319,7 +319,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn lex_quoted(&mut self, _start_line: usize) -> Result<(OsString, bool), ConfigError> {
+    fn lex_quoted(&mut self) -> Result<(OsString, bool), ConfigError> {
         let mut buf: Vec<u8> = Vec::new();
         let mut escape = false;
         loop {
@@ -368,7 +368,7 @@ impl<'a> Lexer<'a> {
         Ok((OsString::from_vec(buf), true))
     }
 
-    fn lex_word_continued(&mut self, _start_line: usize) -> Result<(OsString, bool), ConfigError> {
+    fn lex_word_continued(&mut self) -> Result<(OsString, bool), ConfigError> {
         let mut buf: Vec<u8> = Vec::new();
         let mut escape = true;
         let mut quotes = false;
@@ -768,7 +768,7 @@ pub fn parse_bytes(data: &[u8], file: &str) -> Result<Vec<Rule>, ConfigError> { 
     Ok(rules)
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn parse_str(s: &str, file: &str) -> Result<Vec<Rule>, ConfigError> {
     parse_bytes(s.as_bytes(), file)
 }
