@@ -283,7 +283,7 @@ impl<'a> Lexer<'a> {
                 b'"' => {
                     let ln = self.line;
                     self.next_byte();
-                    let (s, nonkw) = self.lex_quoted(ln)?;
+                    let (s, nonkw) = self.lex_quoted()?;
                     return Ok((self.classify(s, nonkw), ln));
                 }
                 b'\\' => {
