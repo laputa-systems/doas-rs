@@ -295,7 +295,7 @@ impl<'a> Lexer<'a> {
                             continue;
                         }
                         Some(_) => {
-                            let (s, nonkw) = self.lex_word_continued(ln)?;
+                            let (s, nonkw) = self.lex_word_continued()?;
                             return Ok((self.classify(s, nonkw), ln));
                         }
                         None => {
@@ -368,7 +368,7 @@ impl<'a> Lexer<'a> {
         Ok((OsString::from_vec(buf), true))
     }
 
-    fn lex_word_continued(&mut self, _start_line: usize) -> Result<(OsString, bool), ConfigError> {
+    fn lex_word_continued(&mut self) -> Result<(OsString, bool), ConfigError> {
         let mut buf: Vec<u8> = Vec::new();
         let mut escape = true;
         let mut quotes = false;
