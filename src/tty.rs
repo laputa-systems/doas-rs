@@ -76,17 +76,6 @@ pub fn open_pty() -> Result<(i32, i32, String), String> {
     Ok((master, slave, name))
 }
 
-pub fn copy_winsize(src: i32, dst: i32) -> Result<(), String> {
-    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
-    if unsafe { libc::ioctl(src, libc::TIOCGWINSZ, &mut ws) } != 0 {
-        return Err(format!("TIOCGWINSZ failed: {}", std::io::Error::last_os_error()));
-    }
-    if unsafe { libc::ioctl(dst, libc::TIOCSWINSZ, &ws) } != 0 {
-        return Err(format!("TIOCSWINSZ failed: {}", std::io::Error::last_os_error()));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,23 +112,6 @@ mod tests {
         assert!(name.starts_with("/dev/pts/"));
         unsafe { libc::close(master) };
         unsafe { libc::close(slave) };
-    }
-
-    #[test]
-    fn winsize_roundtrip() {
-        let (m1, s1, _) = open_pty().unwrap();
-        let (m2, s2, _) = open_pty().unwrap();
-        let ws = libc::winsize { ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0 };
-        assert_eq!(unsafe { libc::ioctl(m1, libc::TIOCSWINSZ, &ws) }, 0);
-        copy_winsize(m1, m2).expect("winsize copy must work between ptys");
-        let mut out: libc::winsize = unsafe { std::mem::zeroed() };
-        assert_eq!(unsafe { libc::ioctl(m2, libc::TIOCGWINSZ, &mut out) }, 0);
-        assert_eq!(out.ws_row, 24);
-        assert_eq!(out.ws_col, 80);
-        unsafe { libc::close(m1) };
-        unsafe { libc::close(s1) };
-        unsafe { libc::close(m2) };
-        unsafe { libc::close(s2) };
     }
 
     #[test]
