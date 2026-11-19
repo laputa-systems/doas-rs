@@ -31,10 +31,6 @@ pub fn has_controlling_tty() -> bool {
     true
 }
 
-pub fn refuse_interactive(stdin_tty: bool, tiocsti_enabled: bool) -> bool {
-    stdin_tty && tiocsti_enabled
-}
-
 pub fn refuse_session(
     stdin_tty: bool,
     stdout_tty: bool,
@@ -103,14 +99,6 @@ mod tests {
     }
 
     #[test]
-    fn refuse_gate_matrix() {
-        assert!(refuse_interactive(true, true));
-        assert!(!refuse_interactive(true, false));
-        assert!(!refuse_interactive(false, true));
-        assert!(!refuse_interactive(false, false));
-    }
-
-    #[test]
     fn refuse_session_covers_all_stdio_and_ctty() {
         assert!(refuse_session(true, false, false, false, true));
         assert!(refuse_session(false, true, false, false, true));
@@ -124,7 +112,6 @@ mod tests {
 
     #[test]
     fn stdin_only_is_insufficient() {
-        assert!(!refuse_interactive(false, true));
         assert!(refuse_session(false, true, false, false, true));
         assert!(refuse_session(false, false, false, true, true));
     }
