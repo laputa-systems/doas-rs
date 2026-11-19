@@ -319,7 +319,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn lex_quoted(&mut self, _start_line: usize) -> Result<(OsString, bool), ConfigError> {
+    fn lex_quoted(&mut self) -> Result<(OsString, bool), ConfigError> {
         let mut buf: Vec<u8> = Vec::new();
         let mut escape = false;
         loop {
