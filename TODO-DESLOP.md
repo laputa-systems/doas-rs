@@ -168,19 +168,63 @@ and Clippy passed in its pinned Alpine builder. No new tests were added in
 this closeout; existing evidence does not establish mutation completeness
 for the unrun critical regions.
 
+**Dead code completion (DSLP-5)**
+
+The binary crate has no library consumer, feature flags, registrations or
+platform variants: `src/main.rs` rejects non-Linux builds; Cargo.toml defines
+one binary and only libc and rustix. Searches covered source, tests, harness,
+docs, README and build/package manifests. The common consumer check for each
+removal below was `make test` and `make lint` on the candidate copied to the
+native filesystem of the ARM64 Alpine doas-dev container, with
+`TMPDIR=$PWD/.work/tmp` and Cargo offline. All 168 tests and Clippy passed.
+These cuts do not change a CLI, exit, policy syntax or timestamp format.
+The installed guest, ARM64 privilege transition and real password entry were
+not rerun; none of the removed code was reachable from installed execution.
+
+- `matched_permit`: no caller; normal authorization and check mode select
+  `last_match` in `src/main.rs`. The policy and CLI ordering tests exercise
+  those decisions. Removed in d41c564.
+- `matched_deny`: same entry points and tests; no caller. Removed in e05aabd.
+- `ensure_dir`: no caller; timestamp creation uses `ensure_dir_in` through
+  `create_placeholder` from authentication. Timestamp tests cover creation,
+  expiry, corruption and directory validation. Removed in eb171b3.
+- `any_stdio_is_tty`: no caller; the live session gate checks descriptors and
+  controlling TTY individually. TTY session matrix tests cover the gate.
+  Removed in 6ba822d.
+- `refuse_interactive`: used only by tests of the obsolete stdin-only rule;
+  execution calls the broader `refuse_session`. Removed with its isolated
+  test in 8633c0a; the session matrix and stdin-insufficient test remain.
+- `copy_winsize`: only called by its own roundtrip test, with no execution
+  path creating a PTY. Removed with that test in 08e5d4e; PTY fixture tests
+  for the live terminal boundary remain.
+- `_start_line` in `lex_quoted`: unused parameter; `next_token` retains the
+  token line and errors use the lexer's current line. Config and CLI tests
+  cover quotes and diagnostics. Removed across 49006d0 and 6940678.
+- `_start_line` in `lex_word_continued`: same caller and diagnostic reasoning;
+  config tests cover escapes and continuations. Removed in aa88d33.
+
+The broad module suppressions were removed. `parse_str`, `is_permitted`,
+`timestamp_path` and `open_pty` are now test-only helpers; the latter sets up
+PTYs for controlling-terminal and echo tests. `_guard` bindings retain locks
+and terminal restoration until scope exit; `_fd_old` is read and closed in a
+timestamp test. Other underscore-prefixed names are libc symbols. No
+`allow(dead_code)` or `allow(unused...)` remains.
+
+`cargo rustc --locked --bin doas -- -D dead_code` passed. The separate
+`-W unreachable_pub` scan reported 96 visibility warnings: these are public
+within private modules of a binary crate, not external exports. This is one
+reasoned tool disposition; visibility narrowing would not remove code.
+A short single-use indirection review kept `should_isolate` as the named
+security decision, timestamp's parameterized helpers for isolated directory
+tests, and the typed authorization pipeline for its state boundaries. No
+additional cut was justified. `cargo machete` 0.10.1 found no unused
+dependencies; no dependency change was needed.
+
 ## Tickets
 
 
 
 
-### DSLP-5 · P2 · Dead code: tools and debloat
-
-- **Area:** deslop · dead code
-- **Where:** whole repository
-- **Problem:** No dead-code scan has run.
-- **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
-- **Fix with:** deslop
-- **Effort:** M
 
 
 
