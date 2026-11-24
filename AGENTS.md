@@ -2,6 +2,8 @@
 
 Rust reimplementation of OpenBSD `doas` for Linux (aarch64 musl, Alpine 3.24). Setuid-root binary; deny by default, fail closed.
 
+The roadmap, [docs/roadmap.md](docs/roadmap.md), holds all current and future work; its Status is the resume point.
+
 ## Commands
 
 ```sh
