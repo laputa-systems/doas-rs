@@ -1,5 +1,5 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 if [ "$#" -ne 4 ]; then
   echo 'usage: harness/vm-priv.sh guest-root kernel initramfs doas-bin' >&2
   exit 2
@@ -23,7 +23,7 @@ export TMPDIR="$PWD/.work/tmp"
 work="$PWD/.work/vm-priv"
 rm -rf "$work/root"
 mkdir -p "$work/root"
-cp -a --reflink=auto "$GUEST_ROOT/." "$work/root/"
+cp -a "$GUEST_ROOT/." "$work/root/"
 cp "$DOAS_BIN" "$work/root/usr/local/bin/doas"
 cp harness/vm-guest-priv.sh "$work/root/usr/local/bin/vm-guest-priv"
 chmod +x "$work/root/usr/local/bin/vm-guest-priv"
@@ -47,9 +47,11 @@ log="$work/console.log"
 rm -f "$qmp" "$log"
 pid=
 wait_for_exit() {
-  for _ in $(seq 1 "$1"); do
+  i=0
+  while [ "$i" -lt "$1" ]; do
     kill -0 "$pid" 2>/dev/null || return 0
     sleep 1
+    i=$((i + 1))
   done
   ! kill -0 "$pid" 2>/dev/null
 }
@@ -63,7 +65,7 @@ cleanup() {
   fi
   if [ -n "$pid" ]; then wait "$pid" 2>/dev/null || true; pid=; fi
 }
-trap cleanup EXIT
+trap cleanup 0
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 131' QUIT
@@ -75,9 +77,11 @@ qemu-system-x86_64 -M q35 -m 1024 -cpu host -enable-kvm -vga none \
   -display none -serial "file:$log" -qmp "unix:$qmp,server=on,wait=off" \
   -no-reboot > "$work/qemu.log" 2>&1 &
 pid=$!
-for _ in $(seq 1 90); do
+iteration=0
+while [ "$iteration" -lt 90 ]; do
   kill -0 "$pid" 2>/dev/null || break
   sleep 1
+  iteration=$((iteration + 1))
 done
 if kill -0 "$pid" 2>/dev/null; then echo 'guest timed out' >&2; tail -40 "$log"; exit 1; fi
 if wait "$pid"; then
