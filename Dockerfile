@@ -1,4 +1,6 @@
 FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+COPY --from=oci.17166969.xyz/owned-tools@sha256:aaec19e7a44cbc53b40db2d22093600ee888689b89be94da90e5398ed02f1883 /opt/laputa /opt/laputa
+ENV PATH=$PATH:/opt/laputa/bin
 
 ARG RUSTUP_VERSION=1.29.1
 ARG RUSTUP_X86_64_SHA256=331228566cc931f32cd684f9bebc5956a5e5d7394c8d5de595f196a658ab98e6
@@ -7,8 +9,13 @@ ARG RUSTUP_AARCH64_SHA256=1ddf36182ac5d1782dbeefcb9bea7f5f9412d88f4a0d5047b1564a
 RUN apk add --no-cache \
     ca-certificates=20261020-r0 \
     curl=8.23.0-r0 \
-    gcc=15.2.0-r5 \
     musl-dev=1.2.6-r3
+
+# Rust links host proc-macros against -lgcc_s, which only gcc's package symlinks; the C
+# compiler and linker driver is the owned clang.
+RUN apk add --no-cache libgcc=15.2.0-r5 \
+    && ln -s libgcc_s.so.1 /usr/lib/libgcc_s.so \
+    && ln -s /opt/laputa/bin/clang /usr/local/bin/cc
 
 RUN arch="$(apk --print-arch)" \
     && case "$arch" in \
